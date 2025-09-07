@@ -1,0 +1,108 @@
+<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.11/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mediawiki.org/xml/export-0.11/ http://www.mediawiki.org/xml/export-0.11.xsd" version="0.11" xml:lang="en">
+  <siteinfo>
+    <sitename>Wikipedia</sitename>
+    <dbname>enwiki</dbname>
+    <base>https://en.wikipedia.org/wiki/Main_Page</base>
+    <generator>MediaWiki 1.45.0-wmf.16</generator>
+    <case>first-letter</case>
+    <namespaces>
+      <namespace key="-2" case="first-letter">Media</namespace>
+      <namespace key="-1" case="first-letter">Special</namespace>
+      <namespace key="0" case="first-letter" />
+      <namespace key="1" case="first-letter">Talk</namespace>
+      <namespace key="2" case="first-letter">User</namespace>
+      <namespace key="3" case="first-letter">User talk</namespace>
+      <namespace key="4" case="first-letter">Wikipedia</namespace>
+      <namespace key="5" case="first-letter">Wikipedia talk</namespace>
+      <namespace key="6" case="first-letter">File</namespace>
+      <namespace key="7" case="first-letter">File talk</namespace>
+      <namespace key="8" case="first-letter">MediaWiki</namespace>
+      <namespace key="9" case="first-letter">MediaWiki talk</namespace>
+      <namespace key="10" case="first-letter">Template</namespace>
+      <namespace key="11" case="first-letter">Template talk</namespace>
+      <namespace key="12" case="first-letter">Help</namespace>
+      <namespace key="13" case="first-letter">Help talk</namespace>
+      <namespace key="14" case="first-letter">Category</namespace>
+      <namespace key="15" case="first-letter">Category talk</namespace>
+      <namespace key="100" case="first-letter">Portal</namespace>
+      <namespace key="101" case="first-letter">Portal talk</namespace>
+      <namespace key="118" case="first-letter">Draft</namespace>
+      <namespace key="119" case="first-letter">Draft talk</namespace>
+      <namespace key="126" case="first-letter">MOS</namespace>
+      <namespace key="127" case="first-letter">MOS talk</namespace>
+      <namespace key="710" case="first-letter">TimedText</namespace>
+      <namespace key="711" case="first-letter">TimedText talk</namespace>
+      <namespace key="828" case="first-letter">Module</namespace>
+      <namespace key="829" case="first-letter">Module talk</namespace>
+      <namespace key="1728" case="first-letter">Event</namespace>
+      <namespace key="1729" case="first-letter">Event talk</namespace>
+    </namespaces>
+  </siteinfo>
+  <page>
+    <title>AccessibleComputing</title>
+    <ns>0</ns>
+    <id>10</id>
+    <redirect title="Computer accessibility" />
+    <revision>
+      <id>1219062925</id>
+      <parentid>1219062840</parentid>
+      <timestamp>2024-04-15T14:38:04Z</timestamp>
+      <contributor>
+        <username>Asparagusus</username>
+        <id>43603280</id>
+      </contributor>
+      <comment>Restored revision 1002250816 by [[Special:Contributions/Elli|Elli]] ([[User talk:Elli|talk]]): Unexplained redirect breaking</comment>
+      <origin>1219062925</origin>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="111" sha1="kmysdltgexdwkv2xsml3j44jb56dxvn" xml:space="preserve">#REDIRECT [[Computer accessibility]]
+
+{{rcat shell|
+{{R from move}}
+{{R from CamelCase}}
+{{R unprintworthy}}
+}}</text>
+      <sha1>kmysdltgexdwkv2xsml3j44jb56dxvn</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Anarchism</title>
+    <ns>0</ns>
+    <id>12</id>
+    <revision>
+      <id>1308728593</id>
+      <parentid>1308728325</parentid>
+      <timestamp>2025-08-31T05:08:03Z</timestamp>
+      <contributor>
+        <username>SimpleLegoLarry</username>
+        <id>50066081</id>
+      </contributor>
+      <comment>/* Post-WWII */</comment>
+      <origin>1308728593</origin>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="112783" sha1="8fmw264pjfb8hdpkdhjl88txy6ozz1f" xml:space="preserve">{{Short description|Political philosophy and movement}}
+{{Other uses|Anarchy|Anarchism (disambiguation)|Anarchist (disambiguation)}}
+{{Pp-semi-indef}}
+{{Good article}}
+{{Use British English|date=August 2021}}
+{{Use dmy dates|date=October 2024}}
+{{Use shortened footnotes|date=May 2023}}
+{{Anarchism sidebar}}
+
+'''Anarchism''' is a [[political philosophy]] and [[Political movement|movement]] that seeks to abolish all institutions that perpetuate [[authority]], [[coercion]], or [[Social hierarchy|hierarchy]], primarily targeting the [[state (polity)|state]] and [[capitalism]].&lt;ref&gt;{{Citation |last=Fiala |first=Andrew |title=Anarchism |date=2021 |encyclopedia=The Stanford Encyclopedia of Philosophy |editor-last=Zalta |editor-first=Edward N. |url=https://plato.stanford.edu/entries/anarchism/ |access-date=2025-02-23 |edition=Winter 2021 |publisher=Metaphysics Research Lab, Stanford University}}&lt;/ref&gt; Anarchism advocates for the replacement of the state with [[Stateless society|stateless societies]] and voluntary [[Free association (communism and anarchism)|free associations]]. A historically left-wing movement, anarchism is usually described as the [[libertarian]] wing of the [[socialist movement]] ([[libertarian socialism]]).
+
+Although traces of anarchist ideas are found all throughout [[history]], modern anarchism emerged from the [[Age of Enlightenment|Enlightenment]]. During the latter half of the 19th and the first decades of the 20th century, the anarchist movement flourished in most parts of the world and had a significant role in [[Labour movement|workers' struggles]] for [[emancipation]]. [[#Schools of thought|Various anarchist schools of thought]] formed during this period. Anarchists have taken part in [[List of revolutions and rebellions|several revolutions]], most notably in the [[Paris Commune]], the [[Russian Civil War]] and the [[Spanish Civil War]], whose conclusion marked the end of the [[classical era of anarchism]]. In the last decades of the 20th and into the 21st century, the anarchist movement has been resurgent once more, growing in popularity and influence within [[anti-capitalist]], [[anti-war]] and [[anti-globalisation]] movements.
+
+Anarchists employ [[diversity of tactics|diverse approaches]], which may be generally divided into [[revolutionary]] and [[evolutionary strategies]]; there is significant overlap between the two. Evolutionary methods try to simulate what an anarchist society might be like, but revolutionary tactics, which have historically taken a [[Violent extremism|violent]] turn, aim to overthrow authority and the state. Many facets of [[Civilization|human civilization]] have been influenced by anarchist theory, critique, and [[Praxis (process)|praxis]].
+{{Toc limit|3}}
+
+== Etymology, terminology, and definition ==
+{{Main|Definition of anarchism and libertarianism}}
+{{See also|Glossary of anarchism}}
+[[File:Proudhon_jeune.jpg|thumb|[[Pierre-Joseph Proudhon]] – the first political philosopher to call himself an anarchist{{Sfn|Kahn|2000}}&lt;ref name = &quot;Merriman&quot;/&gt;&lt;ref name = &quot;Leier&quot;/&gt;]]
+The [[Etymology|etymological]] origin of ''anarchism'' is from the [[Ancient Greek]] ''anarkhia'' (ἀναρχία), meaning &quot;without a ruler&quot;, composed of the [[prefix]] ''an-'' (&quot;without&quot;) and the word ''arkhos'' (&quot;leader&quot; or &quot;ruler&quot;). The [[suffix]] ''[[-ism]]'' denotes the ideological current that favours anarchy.{{Sfnm|1a1=Bates|1y=2017|1p=128|2a1=Long|2y=2013|2p=217}} ''Anarchism'' appears in English from 1642 as ''anarchisme'' and ''anarchy'' from 1539; early English usages emphasised a sense of disorder.{{Sfnm|1a1=Merriam-Webster|1y=2019|1loc=&quot;Anarchism&quot;|2a1=''Oxford English Dictionary''|2y=2005|2loc=&quot;Anarchism&quot;|3a1=Sylvan|3y=2007|3p=260}} Various factions within the [[French Revolution]] labelled their opponents as ''anarchists'', although few such accused shared many views with later anarchists. Many revolutionaries of the 19th century such as [[William Godwin]] (1756–1836) and [[Wilhelm Weitling]] (1808–1871) would contribute to the anarchist doctrines of the next generation but did not use ''anarchist'' or ''anarchism'' in describing themselves or their beliefs.{{Sfn|Joll|1964|pp=27–37}}{{Sfn|Carlson|1972|pp=22–23}}
+
+The first [[List of political philosophers|political philosopher]] to call himself an ''anarchist'' ({{Langx|fr|link=no|anarchiste}}) was [[Pierre-Joseph Proudhon]] (1809–1865),{{Sfn|Kahn|2000}}&lt;ref name = &quot;Merriman&quot;&gt;Merriman, John M. (2009). ''How a Bombing in Fin-de-Siècle Paris Ignited the Age of Modern Terror''. New Haven: Yale University Press. p. 42. {{ISBN|9780300217933}}.&lt;/ref&gt;&lt;ref name = &quot;Leier&quot;&gt;Leier, Mark (2006). ''Bakunin: The Creative Passion''. New York: Seven Stories Press. p. 211. {{ISBN|9781583228944}}.&lt;/ref&gt; marking the formal birth of anarchism in the mid-19th century. Since the 1890s and beginning in France,{{Sfn|Nettlau|1996|p=162}} ''[[libertarianism]]'' has often been used as a synonym for anarchism;{{Sfn|Guérin|1970|loc=&quot;The Basic Ideas of Anarchism&quot;}} its use as a synonym is still common outside the United States.{{Sfnm|1a1=Ward|1y=2004|1p=62|2a1=Goodway|2y=2006|2p=4|3a1=Skirda|3y=2002|3p=183|4a1=Fernández|4y=2009|4p=9}} Some usages of ''libertarianism'' refer to [[individualistic]] [[free-market]] philosophy only, and [[free-market anarchism]] in particular is termed ''libertarian anarchism''.{{Sfn|Morris|2002|p=61}}
+
+While the term ''libertarian'' has been largely synonymous with anarchism,{{Sfnm|1a1=Marshall|1y=1992|1p=641|2a1=Cohn|2y=2009|2p=6}} its meaning has more recently been diluted by wider adoption from ideologically disparate groups,{{Sfn|Marshall|1992|p=641}} including both the [[New Left]] and [[libertarian Marxists]], who do not associate themselves with [[authoritarian socialists]] or a [[vanguard party]], and extreme [[cultural liberals]], who are primarily concerned with [[civil liberties]].{{Sfn|Marshall|1992|p=641}} Additionally, some anarchists use ''[[libertarian socialist]]''{{Sfnm|1a1=Marshall|1y=1992|1p=641|2a1=Cohn|2y=2009|2p=6|3a1=Levy|3a2=Adams|3y=2018|3p=104}} to avoid anarchism's negative connotations and emph
