@@ -1,4 +1,7 @@
 # filename: run.py
+from app.main import app
+
+# It exports the FastAPI application as app
 import uvicorn
 
 if __name__ == "__main__":
