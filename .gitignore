@@ -11,5 +11,6 @@ frontend/pnpm-lock.yaml
 backend/package-lock.json
 backend/pnpm-lock.yaml
 
+
 backend/venv
 backend/__pycache__

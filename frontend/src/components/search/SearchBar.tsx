@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSearch } from '../../context/SearchContext';
 
@@ -9,7 +9,9 @@ const SearchBar: React.FC<{ isHomePage?: boolean }> = ({ isHomePage = false }) =
   const [isFocused, setIsFocused] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const searchRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Mock suggestions based on input
   const mockSuggestions = [
@@ -55,6 +57,7 @@ const SearchBar: React.FC<{ isHomePage?: boolean }> = ({ isHomePage = false }) =
         ]);
       }
       setShowSuggestions(true);
+      setSelectedSuggestionIndex(-1); // Reset selection when input changes
     } else {
       setShowSuggestions(false);
     }
@@ -63,19 +66,67 @@ const SearchBar: React.FC<{ isHomePage?: boolean }> = ({ isHomePage = false }) =
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (searchInput.trim()) {
-      await performSearch(searchInput);
+      // Navigate immediately
       setShowSuggestions(false);
       navigate('/results');
+      
+      // Perform search in the background
+      performSearch(searchInput).catch(error => {
+        console.error("Search failed:", error);
+      });
     }
   };
 
-  const handleSuggestionClick = async (suggestion: string) => {
+  const handleSuggestionClick = (suggestion: string) => {
     // Extract just the text part from suggestions like "search - Google Search"
     const actualQuery = suggestion.split(' - ')[0];
     setSearchInput(actualQuery);
-    await performSearch(actualQuery);
+    
+    // Navigate immediately
     setShowSuggestions(false);
     navigate('/results');
+    
+    // Perform search in the background
+    performSearch(actualQuery).catch(error => {
+      console.error("Search failed:", error);
+    });
+  };
+
+  // Handle keyboard navigation for suggestions
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (!showSuggestions) return;
+    
+    // Arrow down - move selection down
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedSuggestionIndex(prevIndex => 
+        prevIndex < suggestions.length - 1 ? prevIndex + 1 : prevIndex
+      );
+    }
+    
+    // Arrow up - move selection up
+    else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedSuggestionIndex(prevIndex => 
+        prevIndex > 0 ? prevIndex - 1 : 0
+      );
+    }
+    
+    // Enter - select the highlighted suggestion or submit the form
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedSuggestionIndex >= 0) {
+        handleSuggestionClick(suggestions[selectedSuggestionIndex]);
+      } else {
+        handleSubmit(e as unknown as React.FormEvent);
+      }
+    }
+    
+    // Escape - close suggestions
+    else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+      inputRef.current?.blur();
+    }
   };
 
   return (
@@ -91,16 +142,13 @@ const SearchBar: React.FC<{ isHomePage?: boolean }> = ({ isHomePage = false }) =
             : `${isHomePage ? 'shadow-lg' : 'shadow-md'} border-zeta-gray-200 dark:border-zeta-gray-700`}
           ${isHomePage ? 'py-1' : 'py-1'}`}
       >
-        <div className="pl-5">
-          <svg className="h-5 w-5 text-zeta-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-        </div>
+        <div className="pl-1"></div>
         <input
+          ref={inputRef}
           type="text"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
+          onKeyDown={handleKeyDown}
           onFocus={() => {
             setIsFocused(true);
             if (searchInput) setShowSuggestions(true);
@@ -121,19 +169,6 @@ const SearchBar: React.FC<{ isHomePage?: boolean }> = ({ isHomePage = false }) =
           </button>
         )}
         <div className="flex items-center px-4 space-x-2">
-          <button type="button" className="text-zeta-gray-500 hover:text-zeta-gray-700">
-            <svg className="h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-              <line x1="12" y1="19" x2="12" y2="22"></line>
-            </svg>
-          </button>
-          <button type="button" className="text-zeta-gray-500 hover:text-zeta-gray-700">
-            <svg className="h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-              <circle cx="12" cy="12" r="3"></circle>
-            </svg>
-          </button>
           <button 
             type="submit"
             className="hidden md:block bg-zeta-gray-100 hover:bg-zeta-gray-200 dark:bg-zeta-gray-700 dark:hover:bg-zeta-gray-600 p-2 rounded-full"
@@ -155,7 +190,7 @@ const SearchBar: React.FC<{ isHomePage?: boolean }> = ({ isHomePage = false }) =
               if (suggestion.toLowerCase().includes('search party')) {
                 return (
                   <li key={index} 
-                    className="flex items-center px-5 py-3 hover:bg-zeta-gray-100 dark:hover:bg-zeta-gray-700 cursor-pointer"
+                    className={`flex items-center px-5 py-3 hover:bg-zeta-gray-100 dark:hover:bg-zeta-gray-700 cursor-pointer ${selectedSuggestionIndex === index ? 'bg-zeta-gray-100 dark:bg-zeta-gray-700' : ''}`}
                     onClick={() => handleSuggestionClick(suggestion)}
                   >
                     <div className="w-8 h-8 mr-3 flex-shrink-0">
@@ -175,7 +210,7 @@ const SearchBar: React.FC<{ isHomePage?: boolean }> = ({ isHomePage = false }) =
               if (suggestion.toLowerCase().includes('manage search engines')) {
                 return (
                   <li key={index}
-                    className="flex items-center px-5 py-3 hover:bg-zeta-gray-100 dark:hover:bg-zeta-gray-700 cursor-pointer"
+                    className={`flex items-center px-5 py-3 hover:bg-zeta-gray-100 dark:hover:bg-zeta-gray-700 cursor-pointer ${selectedSuggestionIndex === index ? 'bg-zeta-gray-100 dark:bg-zeta-gray-700' : ''}`}
                     onClick={() => handleSuggestionClick(suggestion)}
                   >
                     <div className="w-5 h-5 mr-3">
@@ -192,7 +227,7 @@ const SearchBar: React.FC<{ isHomePage?: boolean }> = ({ isHomePage = false }) =
               // Regular search suggestions
               return (
                 <li key={index}
-                  className="flex items-center px-5 py-3 hover:bg-zeta-gray-100 dark:hover:bg-zeta-gray-700 cursor-pointer"
+                  className={`flex items-center px-5 py-3 hover:bg-zeta-gray-100 dark:hover:bg-zeta-gray-700 cursor-pointer ${selectedSuggestionIndex === index ? 'bg-zeta-gray-100 dark:bg-zeta-gray-700' : ''}`}
                   onClick={() => handleSuggestionClick(suggestion)}
                 >
                   <svg className="h-5 w-5 text-zeta-gray-500 mr-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
