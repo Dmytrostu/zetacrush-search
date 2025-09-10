@@ -13,4 +13,7 @@ backend/pnpm-lock.yaml
 
 
 backend/venv
-backend/__pycache__
+
+backend/*/__pycache__
+backend/*/*/__pycache__
+
