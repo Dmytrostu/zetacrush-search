@@ -17,20 +17,20 @@ const SearchBar: React.FC<SearchBarProps> = ({ isHomePage = false }) => {
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   // Debounce function
   const debounce = <F extends (...args: any[]) => any>(
-    func: F, 
+    func: F,
     delay: number
   ) => {
     let timeoutId: ReturnType<typeof setTimeout>;
-    
+
     return (...args: Parameters<F>): void => {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(() => func(...args), delay);
     };
   };
-  
+
   // Sync input value with query from context
   useEffect(() => {
     setInputValue(query || '');
@@ -65,7 +65,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ isHomePage = false }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setInputValue(value);
-    
+
     // Only fetch suggestions if we have at least 2 characters
     if (value.trim().length >= 2) {
       debouncedFetchSuggestions(value);
@@ -79,12 +79,12 @@ const SearchBar: React.FC<SearchBarProps> = ({ isHomePage = false }) => {
     setInputValue('');
     setQuery('');
     setShowSuggestions(false);
-    
+
     // If we're on the results page, navigate back to home
     if (!isHomePage && location.pathname.includes('/results')) {
       navigate('/');
     }
-    
+
     inputRef.current?.focus();
   };
 
@@ -99,7 +99,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ isHomePage = false }) => {
     setQuery(suggestion);
     performSearch(suggestion);
     setShowSuggestions(false);
-    
+
     if (inputRef.current) {
       inputRef.current.focus();
     }
@@ -109,7 +109,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ isHomePage = false }) => {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
-        suggestionsRef.current && 
+        suggestionsRef.current &&
         !suggestionsRef.current.contains(event.target as Node) &&
         inputRef.current &&
         !inputRef.current.contains(event.target as Node)
@@ -150,11 +150,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ isHomePage = false }) => {
           <input
             ref={inputRef}
             type="text"
-            className={`w-full pl-10 pr-12 py-3 rounded-full border ${
-              theme === 'dark'
+            className={`w-full pl-10 pr-12 py-3 rounded-full border ${theme === 'dark'
                 ? 'bg-zeta-gray-800 border-zeta-gray-700 text-white placeholder-zeta-gray-400'
                 : 'bg-white border-zeta-gray-300 text-zeta-gray-900 placeholder-zeta-gray-400'
-            } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              } focus:outline-none focus:ring-2 focus:ring-blue-500`}
             placeholder={
               isHomePage
                 ? "Search for articles, topics, or keywords..."
@@ -193,13 +192,11 @@ const SearchBar: React.FC<SearchBarProps> = ({ isHomePage = false }) => {
           {/* Search button with icon instead of text */}
           <button
             type="submit"
-            className={`absolute right-0 top-0 h-full px-4 rounded-r-full ${
-              isLoading ? 'opacity-75 cursor-wait' : ''
-            } ${
-              theme === 'dark'
+            className={`absolute right-0 top-0 h-full px-4 rounded-r-full ${isLoading ? 'opacity-75 cursor-wait' : ''
+              } ${theme === 'dark'
                 ? 'bg-zeta-gray-700 hover:bg-zeta-gray-600 text-white'
                 : 'bg-zeta-gray-200 hover:bg-zeta-gray-300 text-zeta-gray-800'
-            } focus:outline-none`}
+              } focus:outline-none`}
             disabled={isLoading}
           >
             {isLoading ? (
@@ -226,16 +223,68 @@ const SearchBar: React.FC<SearchBarProps> = ({ isHomePage = false }) => {
 
       {/* Search suggestions */}
       {showSuggestions && inputValue.trim().length >= 2 && (
-        <div 
+        <div
           ref={suggestionsRef}
-          className={`absolute z-10 w-full mt-1 rounded-md shadow-lg ${
-            theme === 'dark' 
-              ? 'bg-zeta-gray-800 border border-zeta-gray-700' 
+          className={`absolute z-10 w-full mt-1 rounded-md shadow-lg ${theme === 'dark'
+              ? 'bg-zeta-gray-800 border border-zeta-gray-700'
               : 'bg-white border border-zeta-gray-300'
-          }`}
+            }`}
         >
-          {/* Suggestions content - no changes needed here */}
-          {/* ... */}
+          {isFetchingSuggestions ? (
+            <div className="py-3 px-4 text-center">
+              <div className="inline-block h-4 w-4 border-t-2 border-b-2 border-zeta-gray-400 rounded-full animate-spin mr-2"></div>
+              <span className={`text-sm ${theme === 'dark' ? 'text-zeta-gray-300' : 'text-zeta-gray-600'}`}>
+                Loading suggestions...
+              </span>
+            </div>
+          ) : suggestions.length > 0 ? (
+            <ul className="py-1">
+              {suggestions.map((suggestion, index) => (
+                <li
+                  key={index}
+                  className={`px-4 py-2 cursor-pointer flex items-center ${theme === 'dark'
+                      ? 'hover:bg-zeta-gray-700 text-white'
+                      : 'hover:bg-zeta-gray-100 text-zeta-gray-900'
+                    }`}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                >
+                  <svg className="h-4 w-4 mr-2 text-zeta-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  {suggestion}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="py-3 px-4 text-center">
+              <span className={`text-sm ${theme === 'dark' ? 'text-zeta-gray-400' : 'text-zeta-gray-500'}`}>
+                No suggestions found
+              </span>
+            </div>
+          )}
+
+          {/* Quick search options */}
+          {inputValue.trim().length >= 2 && suggestions.length > 0 && (
+            <div className={`px-3 py-2 border-t ${theme === 'dark' ? 'border-zeta-gray-700' : 'border-zeta-gray-200'
+              }`}>
+              <div className={`text-xs mb-1 ${theme === 'dark' ? 'text-zeta-gray-400' : 'text-zeta-gray-500'
+                }`}>Quick searches:</div>
+              <div className="flex flex-wrap gap-1">
+                {[`"${inputValue}" exact match`, `${inputValue} definition`, `${inputValue} tutorial`].map((quickSearch, i) => (
+                  <button
+                    key={i}
+                    className={`text-xs px-2 py-1 rounded-full ${theme === 'dark'
+                        ? 'bg-zeta-gray-700 text-zeta-gray-300 hover:bg-zeta-gray-600'
+                        : 'bg-zeta-gray-100 text-zeta-gray-700 hover:bg-zeta-gray-200'
+                      }`}
+                    onClick={() => handleSuggestionClick(quickSearch)}
+                  >
+                    {quickSearch}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

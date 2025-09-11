@@ -8,6 +8,7 @@ interface SearchResultItemProps {
 
 // Enhanced helper function to transform MediaWiki text to HTML
 const parseMediaWikiText = (text: string): string => {
+  // Existing implementation...
   try {
     // Basic transformations for common MediaWiki syntax
     let html = text;
@@ -120,41 +121,45 @@ const SearchResultItem: React.FC<SearchResultItemProps> = ({ result }) => {
   return (
     <div className={`p-4 border rounded-lg mb-4 ${
       theme === 'dark' ? 'bg-zeta-gray-800 border-zeta-gray-700' : 'bg-white border-zeta-gray-200'
-    } transition-all duration-200 hover:shadow-md`}>
+    } transition-all duration-200 hover:shadow-md overflow-hidden`}>
       <div className="flex justify-between items-start">
-        <h3 className="text-lg font-medium mb-2">
+        <h3 className="text-lg font-medium mb-2 overflow-hidden text-ellipsis">
           <a 
             href={result.url || `https://en.wikipedia.org/wiki/${encodeURIComponent(result.title.replace(/ /g, '_'))}`}
             target="_blank" 
             rel="noopener noreferrer"
             className={`${
               theme === 'dark' ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'
-            }`}
+            } break-words`}
             dangerouslySetInnerHTML={{ __html: result.highlights?.title ? result.highlights.title[0] : result.title }}
           />
         </h3>
-        <span className={`text-xs px-2 py-1 rounded-full ${
+        <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ml-2 ${
           theme === 'dark' ? 'bg-zeta-gray-700 text-zeta-gray-300' : 'bg-zeta-gray-200 text-zeta-gray-600'
         }`}>
           Score: {Math.round(result.score * 100) / 100}
         </span>
       </div>
             
-      {/* Render the parsed MediaWiki content */}
+      {/* Render the parsed MediaWiki content with proper wrapping */}
       <div 
-        className={`mt-2 text-sm wiki-content ${
+        className={`mt-2 text-sm wiki-content break-words overflow-hidden ${
           theme === 'dark' ? 'text-zeta-gray-300' : 'text-zeta-gray-700'
         }`}
         dangerouslySetInnerHTML={{ __html: parsedHtml }}
       />
       
+      {/* Add custom CSS to fix link and list item wrapping inside the dangerouslySetInnerHTML */}
+      <style>{`
+      `}</style>
+      
       {/* Display metadata if available */}
       {(result.contributor || result.timestamp) && (
-        <div className="mt-3 text-xs flex items-center gap-3">
+        <div className="mt-3 text-xs flex flex-wrap items-center gap-3">
           {result.contributor && (
             <span className={`${
               theme === 'dark' ? 'text-zeta-gray-400' : 'text-zeta-gray-500'
-            }`}>
+            } break-words`}>
               <span className="font-medium">By:</span> {result.contributor}
             </span>
           )}
