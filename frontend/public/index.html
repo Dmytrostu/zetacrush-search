@@ -7,6 +7,26 @@
     <link rel="stylesheet" href="%PUBLIC_URL%/tailwind.css">
     <link rel="stylesheet" href="index.css">
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <style>
+        /* Wiki-specific element styling */
+        sup.reference {
+            font-size: 0.8em;
+            vertical-align: super;
+            line-height: 1;
+            color: #3182ce;
+        }
+
+        .dark sup.reference {
+            color: #60a5fa;
+        }
+
+        .infobox,
+        .wikitable {
+            max-width: 100%;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+    </style>
 </head>
 <body class="bg-gray-100">
     <div id="root"></div>

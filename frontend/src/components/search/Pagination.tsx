@@ -1,112 +1,112 @@
 import React from 'react';
 import { useSearch } from '../../context/SearchContext';
+import { useTheme } from '../../context/ThemeContext';
 
 interface PaginationProps {
   onPageChange: (page: number) => void;
 }
 
 const Pagination: React.FC<PaginationProps> = ({ onPageChange }) => {
-  const { currentPage, totalResults, pageSize, isLoading } = useSearch();
+  const { currentPage, totalResults, pageSize, setPageSize, isLoading } = useSearch();
+  const { theme } = useTheme();
   
   // Calculate total pages
   const totalPages = Math.ceil(totalResults / pageSize);
   
-  // Don't show pagination if there's only one page or no results
+  // Don't show pagination if there's only one page or no results or still loading
   if (totalPages <= 1 || isLoading) return null;
   
-  // Calculate which page numbers to show
-  const getPageNumbers = () => {
-    const pages = [];
+  // Calculate the range of pages to show (Google-style)
+  const getPageRange = () => {
+    const visiblePages = 10; // Maximum number of page buttons to show
+    let startPage = Math.max(1, currentPage - Math.floor(visiblePages / 2));
+    const endPage = Math.min(totalPages, startPage + visiblePages - 1);
     
-    // Always show first page
-    pages.push(1);
+    // Adjust startPage if we're near the end to always show the same number of pages
+    startPage = Math.max(1, endPage - visiblePages + 1);
     
-    // Add current page and neighbors
-    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
-      if (!pages.includes(i)) {
-        pages.push(i);
-      }
-    }
-    
-    // Always show last page if there is more than 1 page
-    if (totalPages > 1) {
-      pages.push(totalPages);
-    }
-    
-    // Add ellipses where needed
-    const result = [];
-    let prevPage = null;
-    
-    for (const page of pages) {
-      if (prevPage && page - prevPage > 1) {
-        result.push("...");
-      }
-      result.push(page);
-      prevPage = page;
-    }
-    
-    return result;
+    return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
   };
   
-  const pageNumbers = getPageNumbers();
+  const pageRange = getPageRange();
+  
+  // Button styles based on theme
+  const buttonBaseStyles = `h-9 min-w-9 mx-0.5 flex items-center justify-center text-sm transition-colors duration-200 border`;
+  const activeButtonStyles = theme === 'dark'
+    ? 'bg-blue-600 text-white border-blue-600'
+    : 'bg-blue-500 text-white border-blue-500';
+  const inactiveButtonStyles = theme === 'dark'
+    ? 'bg-zeta-gray-800 text-zeta-gray-300 border-zeta-gray-700 hover:bg-zeta-gray-700'
+    : 'bg-white text-zeta-gray-700 border-zeta-gray-200 hover:bg-zeta-gray-100';
+  const disabledButtonStyles = theme === 'dark'
+    ? 'bg-zeta-gray-800 text-zeta-gray-600 border-zeta-gray-700 cursor-not-allowed'
+    : 'bg-white text-zeta-gray-400 border-zeta-gray-200 cursor-not-allowed';
   
   return (
-    <nav className="flex justify-center mt-8 mb-4">
-      <ul className="flex items-center space-x-2">
-        {/* Previous button */}
-        <li>
-          <button
-            onClick={() => onPageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className={`px-3 py-1 rounded-md ${
-              currentPage === 1
-                ? 'text-zeta-gray-400 cursor-not-allowed'
-                : 'text-zeta-gray-700 hover:bg-zeta-gray-100 dark:text-zeta-gray-300 dark:hover:bg-zeta-gray-800'
-            }`}
-            aria-label="Previous page"
-          >
-            Previous
-          </button>
-        </li>
+    <div className="w-full flex flex-col items-center mt-8 mb-4">
+      {/* Results count */}
+      <div className={`mb-4 text-sm ${theme === 'dark' ? 'text-zeta-gray-400' : 'text-zeta-gray-600'}`}>
+        Showing results {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalResults)} of {totalResults}
+      </div>
+      
+      {/* Google-style pagination */}
+      <div className="flex items-center">
+        {/* Previous button with Google-style arrow */}
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className={`${buttonBaseStyles} rounded-l-full px-4 ${currentPage === 1 ? disabledButtonStyles : inactiveButtonStyles}`}
+          aria-label="Previous page"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Prev
+        </button>
         
         {/* Page numbers */}
-        {pageNumbers.map((page, index) => (
-          <li key={index}>
-            {page === "..." ? (
-              <span className="px-3 py-1 text-zeta-gray-500 dark:text-zeta-gray-400">...</span>
-            ) : (
-              <button
-                onClick={() => onPageChange(Number(page))}
-                className={`w-10 h-10 flex items-center justify-center rounded-md ${
-                  currentPage === page
-                    ? 'bg-zeta-gray-800 text-white dark:bg-zeta-gray-700'
-                    : 'text-zeta-gray-700 hover:bg-zeta-gray-100 dark:text-zeta-gray-300 dark:hover:bg-zeta-gray-800'
-                }`}
-                aria-current={currentPage === page ? 'page' : undefined}
-              >
-                {page}
-              </button>
-            )}
-          </li>
+        {pageRange.map((page) => (
+          <button
+            key={page}
+            onClick={() => onPageChange(page)}
+            className={`${buttonBaseStyles} rounded ${currentPage === page ? activeButtonStyles : inactiveButtonStyles}`}
+            aria-current={currentPage === page ? 'page' : undefined}
+          >
+            {page}
+          </button>
         ))}
         
-        {/* Next button */}
-        <li>
+        {/* Show ellipsis if not showing the last page */}
+        {pageRange[pageRange.length - 1] < totalPages && (
+          <div className={`${buttonBaseStyles} ${inactiveButtonStyles} cursor-default`}>
+            ...
+          </div>
+        )}
+        
+        {/* Show last page if not in range */}
+        {pageRange[pageRange.length - 1] < totalPages && (
           <button
-            onClick={() => onPageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className={`px-3 py-1 rounded-md ${
-              currentPage === totalPages
-                ? 'text-zeta-gray-400 cursor-not-allowed'
-                : 'text-zeta-gray-700 hover:bg-zeta-gray-100 dark:text-zeta-gray-300 dark:hover:bg-zeta-gray-800'
-            }`}
-            aria-label="Next page"
+            onClick={() => onPageChange(totalPages)}
+            className={`${buttonBaseStyles} rounded ${inactiveButtonStyles}`}
           >
-            Next
+            {totalPages}
           </button>
-        </li>
-      </ul>
-    </nav>
+        )}
+        
+        {/* Next button with Google-style arrow */}
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className={`${buttonBaseStyles} rounded-r-full px-4 ${currentPage === totalPages ? disabledButtonStyles : inactiveButtonStyles}`}
+          aria-label="Next page"
+        >
+          Next
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+    </div>
   );
 };
 

@@ -37,4 +37,4 @@ export const searchApi = {
   }
 };
 
-export { ENDPOINTS };
+export { ENDPOINTS, apiClient };

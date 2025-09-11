@@ -3,13 +3,13 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useSearch } from '../context/SearchContext';
 import { useTheme } from '../context/ThemeContext';
 import SearchBar from '../components/search/SearchBar';
-import SearchFilters from '../components/search/SearchFilters';
 import SearchResults from '../components/search/SearchResults';
 import Pagination from '../components/search/Pagination';
 import Loader from '../components/common/Loader';
+import Footer from '../components/layout/Footer';
 
 const ResultsPage: React.FC = () => {
-  const { query, searchResults, isLoading, performSearch, totalResults } = useSearch();
+  const { query, searchResults, isLoading, performSearch, totalResults, pageSize } = useSearch();
   const { theme, toggleTheme } = useTheme();
   const [isAnimating, setIsAnimating] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -44,15 +44,32 @@ const ResultsPage: React.FC = () => {
   }, [query, currentPage]);
   
   // Handle page change
-  const handlePageChange = (page: number) => {
-    // Update URL with new page parameter
-    setSearchParams({ query: query, page: page.toString() });
+  const handlePageChange = (page: number, newPageSize?: number) => {
+    // Use the new page size or keep the current one
+    const size = newPageSize || pageSize;
+    
+    // Update URL with new page parameter and page size if provided
+    const params: Record<string, string> = { 
+      query: query, 
+      page: page.toString() 
+    };
+    
+    // Only add page size if it's different from default
+    if (size !== 10) {
+      params.pageSize = size.toString();
+    }
+    
+    setSearchParams(params);
+    
+    // Perform search with new parameters
+    performSearch(query, page, size);
+    
     // Scroll to top
     window.scrollTo(0, 0);
   };
 
   return (
-    <div className={`min-h-screen ${theme === 'dark' ? 'bg-zeta-gray-900 text-zeta-white' : 'bg-zeta-white text-zeta-gray-800'}`}>
+    <div className={`flex flex-col min-h-screen ${theme === 'dark' ? 'bg-zeta-gray-900 text-zeta-white' : 'bg-zeta-white text-zeta-gray-800'}`}>
       {/* Header with search bar that animates from center to top */}
       <header className={`transition-all duration-500 ease-in-out border-b border-zeta-gray-200 dark:border-zeta-gray-700 sticky top-0 bg-zeta-white dark:bg-zeta-gray-900 z-10 ${
         isAnimating 
@@ -94,77 +111,20 @@ const ResultsPage: React.FC = () => {
             }`}>
               <SearchBar isHomePage={isAnimating} />
             </div>
-            
-            {/* Right side icons */}
-            <div className="ml-auto flex items-center gap-4 mt-4 md:mt-0">
-              
-              <button className="bg-zeta-gray-600 text-zeta-white px-3 py-1.5 rounded-md hover:bg-zeta-gray-700 text-sm">
-                Sign in
-              </button>
-            </div>
-          </div>
-          
-          {/* Search filters/tabs */}
-          <div className="flex gap-6 mt-3 text-sm overflow-x-auto pb-1">
-            <button className="flex items-center gap-1 text-zeta-gray-600 border-b-2 border-zeta-gray-600 pb-2 px-1">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M12.9 14.32a8 8 0 1 1 1.41-1.41l5.35 5.33-1.42 1.42-5.33-5.34zM8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12z"></path>
-              </svg>
-              All
-            </button>
-            <button className="flex items-center gap-1 text-zeta-gray-600 dark:text-zeta-gray-300 hover:text-zeta-gray-800 px-1">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10 12a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0-6a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 12a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"></path>
-              </svg>
-              Images
-            </button>
-            <button className="flex items-center gap-1 text-zeta-gray-600 dark:text-zeta-gray-300 hover:text-zeta-gray-800 px-1">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10 12a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0-6a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 12a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"></path>
-              </svg>
-              Videos
-            </button>
-            <button className="flex items-center gap-1 text-zeta-gray-600 dark:text-zeta-gray-300 hover:text-zeta-gray-800 px-1">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10 12a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0-6a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 12a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"></path>
-              </svg>
-              News
-            </button>
-            <button className="flex items-center gap-1 text-zeta-gray-600 dark:text-zeta-gray-300 hover:text-zeta-gray-800 px-1">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10 12a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0-6a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 12a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"></path>
-              </svg>
-              Shopping
-            </button>
-            <button className="flex items-center gap-1 text-zeta-gray-600 dark:text-zeta-gray-300 hover:text-zeta-gray-800 px-1">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10 12a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0-6a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm0 12a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"></path>
-              </svg>
-              More
-            </button>
           </div>
         </div>
       </header>
       
-      {/* Main content */}
-      <main className={`container mx-auto px-4 pt-4 pb-12 grid grid-cols-1 lg:grid-cols-4 gap-8 transition-all duration-700 ${
+      {/* Main content - added flex-grow to push footer down */}
+      <main className={`flex-grow container mx-auto px-4 pt-4 pb-12 grid grid-cols-1 gap-8 transition-all duration-700 ${
         isAnimating 
           ? 'opacity-0 transform translate-y-10' 
           : 'opacity-100 transform translate-y-0'
       }`}>
         {/* Left sidebar with filters on desktop */}
-        <aside className="hidden lg:block">
-          <SearchFilters />
-        </aside>
         
         {/* Main results */}
         <div className="lg:col-span-3">
-          {/* Results stats */}
-          {!isLoading && searchResults.length > 0 && (
-            <p className="text-sm text-zeta-gray-500 dark:text-zeta-gray-400 mb-4">
-              About {resultStats.count.toLocaleString()} results ({resultStats.time} seconds)
-            </p>
-          )}
           
           {isLoading ? (
             <div className="flex justify-center py-12">
@@ -213,6 +173,11 @@ const ResultsPage: React.FC = () => {
           )}
         </div>
       </main>
+      
+      {/* Footer - added mt-auto to keep it at bottom */}
+      <footer className={`relative mt-auto z-10 transition-opacity duration-500 ${isAnimating ? 'opacity-0' : 'opacity-100'}`}>
+        <Footer />
+      </footer>
     </div>
   );
 };

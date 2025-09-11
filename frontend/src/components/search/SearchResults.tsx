@@ -2,6 +2,7 @@ import React from 'react';
 import SearchResultItem from './SearchResultItem';
 import { SearchResult } from '../../types/search.types';
 import { useSearch } from '../../context/SearchContext';
+import Footer from '../layout/Footer';
 
 interface SearchResultsProps {
   items: SearchResult[];
@@ -35,7 +36,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ items }) => {
     `https://en.wikipedia.org/wiki/${encodeURIComponent(featuredSnippet.title.replace(/ /g, '_'))}`;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 md:max-w-[1100px] md:m-auto">
       {/* Results count */}
       <div className="text-sm text-zeta-gray-600 dark:text-zeta-gray-400">
         Found about {totalResults.toLocaleString()} results for "{query}"
@@ -57,7 +58,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ items }) => {
       {/* Regular search results - Google-style */}
       <div className="space-y-7">
         {items.map(result => (
-          <SearchResultItem key={result.id} item={result} />
+          <SearchResultItem key={result.id} result={result} />
         ))}
       </div>
       
