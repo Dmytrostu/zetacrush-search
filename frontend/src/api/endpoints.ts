@@ -1,4 +1,4 @@
 export const ENDPOINTS = {
   SEARCH: '/api/search',
-  SUGGEST: '/api/suggest',
+  HEALTH: '/api/health',
 };

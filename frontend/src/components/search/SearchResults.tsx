@@ -1,12 +1,27 @@
 import React from 'react';
 import SearchResultItem from './SearchResultItem';
 import { SearchResult } from '../../types/search.types';
+import { useSearch } from '../../context/SearchContext';
+import Footer from '../layout/Footer';
 
 interface SearchResultsProps {
   items: SearchResult[];
 }
 
 const SearchResults: React.FC<SearchResultsProps> = ({ items }) => {
+  const { totalResults, query, apiHealthy } = useSearch();
+  
+  // Show API status warning if API is not healthy
+  if (!apiHealthy) {
+    return (
+      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+        <p className="text-yellow-700">
+          Warning: The search API is currently experiencing issues. Search results may be unavailable.
+        </p>
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <div className="text-center py-10">
@@ -15,26 +30,35 @@ const SearchResults: React.FC<SearchResultsProps> = ({ items }) => {
     );
   }
 
-  // Mock featured snippet like Google often shows
+  // Use the highest scoring result as the featured snippet
   const featuredSnippet = items[0];
+  const featuredUrl = featuredSnippet.url || 
+    `https://en.wikipedia.org/wiki/${encodeURIComponent(featuredSnippet.title.replace(/ /g, '_'))}`;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 md:max-w-[1100px] md:m-auto">
+      {/* Results count */}
+      <div className="text-sm text-zeta-gray-600 dark:text-zeta-gray-400">
+        Found about {totalResults.toLocaleString()} results for "{query}"
+      </div>
+      
       {/* Featured snippet - Google-style */}
-      {featuredSnippet && (
+      {featuredSnippet && featuredSnippet.score > 10 && (
         <div className="bg-zeta-white dark:bg-zeta-gray-800 rounded-lg border border-zeta-gray-200 dark:border-zeta-gray-700 p-4 mb-6">
           <div className="text-sm text-zeta-gray-500 dark:text-zeta-gray-400 mb-2">Featured snippet</div>
           <h3 className="font-medium text-lg mb-2">{featuredSnippet.title}</h3>
-          <p className="text-sm mb-3">{featuredSnippet.description}</p>
-          <div className="text-sm text-zeta-gray-600 dark:text-zeta-gray-400 mb-1">{featuredSnippet.url}</div>
-          <a href={featuredSnippet.url} className="text-zeta-gray-600 text-sm hover:underline">Learn more</a>
+          <p className="text-sm mb-3">{featuredSnippet.text?.substring(0, 200)}...</p>
+          <div className="text-sm text-zeta-gray-600 dark:text-zeta-gray-400 mb-1">
+            wikipedia.org › wiki › {featuredSnippet.title.replace(/ /g, '_')}
+          </div>
+          <a href={featuredUrl} className="text-zeta-gray-600 text-sm hover:underline">Learn more</a>
         </div>
       )}
       
       {/* Regular search results - Google-style */}
       <div className="space-y-7">
         {items.map(result => (
-          <SearchResultItem key={result.id} item={result} />
+          <SearchResultItem key={result.id} result={result} />
         ))}
       </div>
       
