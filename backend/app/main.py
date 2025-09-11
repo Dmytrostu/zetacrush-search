@@ -20,7 +20,7 @@ app = FastAPI(
     description="API for searching wiki articles in Elasticsearch",
     version="1.0.0",
     # Special configuration for serverless environments
-    root_path="/api" if IS_SERVERLESS else "",
+    root_path="",
 )
 
 # Configure CORS - More permissive in serverless environments
