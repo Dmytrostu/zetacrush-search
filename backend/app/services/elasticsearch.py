@@ -117,6 +117,11 @@ async def search(search_params: SearchQuery) -> SearchResponse:
                 if "text" in hit["highlight"]:
                     highlights["text"] = hit["highlight"]["text"]
             
+            highlight_obj = SearchHighlight(
+                title=highlights.get("title"),
+                text=highlights.get("text")
+            ) if highlights else None
+            
             results.append(
                 SearchResultItem(
                     id=hit["_id"],
@@ -125,7 +130,7 @@ async def search(search_params: SearchQuery) -> SearchResponse:
                     contributor=source.get("contributor_username", ""),
                     timestamp=source.get("timestamp", ""),
                     score=hit["_score"],
-                    highlights=SearchHighlight(**highlights) if highlights else None
+                    highlights=highlight_obj
                 )
             )
         
