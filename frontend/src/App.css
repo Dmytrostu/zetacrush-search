@@ -31,7 +31,7 @@ body {
 }
 
 /* Focus styles */
-button:focus, 
+button:focus,
 input:focus {
   @apply outline-none ring-2 ring-zeta-gray-400;
 }
@@ -118,7 +118,12 @@ a {
   @apply mx-auto px-4 py-6;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   @apply font-bold;
 }
 
@@ -132,4 +137,50 @@ input {
 
 .loader {
   @apply border-4 border-blue-500 border-t-transparent rounded-full animate-spin;
+}
+
+
+.wiki-content p,
+.wiki-content li,
+.wiki-content a,
+.wiki-content span {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+  max-width: 100%;
+}
+
+.wiki-content a {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+  text-overflow: ellipsis;
+}
+
+.wiki-content ul,
+.wiki-content ol {
+  padding-left: 1.5rem;
+}
+
+.wiki-content ul li,
+.wiki-content ol li {
+  margin-bottom: 0.25rem;
+}
+
+.wiki-content img {
+  max-width: 100%;
+  height: auto;
+}
+
+.wiki-content pre {
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.wiki-content table {
+  table-layout: fixed;
+  width: 100%;
+  overflow-x: auto;
+  display: block;
 }
