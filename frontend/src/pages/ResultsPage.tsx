@@ -9,7 +9,7 @@ import Loader from '../components/common/Loader';
 import Footer from '../components/layout/Footer';
 
 const ResultsPage: React.FC = () => {
-  const { query, searchResults, isLoading, performSearch, totalResults, pageSize } = useSearch();
+  const { query, searchResults, isLoading, performSearch, totalResults, pageSize, setQuery } = useSearch();
   const { theme, toggleTheme } = useTheme();
   const [isAnimating, setIsAnimating] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -83,7 +83,7 @@ const ResultsPage: React.FC = () => {
               : 'flex-row items-center'
           }`}>
             {/* Logo */}
-            <Link to="/" className={`transform transition-all duration-500 ${
+            <Link to="/" onClick={() => {setQuery('')}} className={`transform transition-all duration-500 ${
               isAnimating 
                 ? 'mb-8 translate-y-4' 
                 : 'mb-0 mr-8 translate-y-0'
