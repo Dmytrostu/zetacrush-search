@@ -1,33 +1,54 @@
-from elasticsearch import AsyncElasticsearch
-# Replace this line:
-# from elasticsearch.exceptions import ElasticsearchException
-# With this:
-from elasticsearch import ApiError, TransportError  # Use the new exception classes
+from elasticsearch import Elasticsearch, ApiError, TransportError
 from app.config import settings
 from app.models.search import SearchQuery, SearchResponse, SearchResultItem, SearchHighlight
 import logging
+import os
 from typing import Dict, Any, List, Optional
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
-# Configure Elasticsearch client
-es_config = {}
-if settings.es_apikey:
-    es_config["api_key"] = settings.es_apikey
-elif settings.es_user and settings.es_password:
-    es_config["basic_auth"] = (settings.es_user, settings.es_password)
+# Configure Elasticsearch client options
+@lru_cache()
 
-es = AsyncElasticsearch(settings.es_host, **es_config)
+def get_elasticsearch_client() -> Elasticsearch:
+    """Get or create an Elasticsearch client"""
+    from app.config import settings
+    
+    # Create a new client or return an existing one
+    client = Elasticsearch( settings.es_host, api_key=settings.es_apikey)
+    
+    return client
 
-async def check_connection() -> bool:
+# Get client instance
+try:
+    es = get_elasticsearch_client()
+    logger.info("Successfully initialized Elasticsearch client")
+except Exception as e:
+    logger.error(f"Failed to initialize Elasticsearch client: {str(e)}")
+    # Re-raise the exception for proper error handling
+    raise
+    
+    es = AsyncElasticWrapper(sync_es)
+    logger.info("Using synchronous Elasticsearch client with async wrapper")
+
+def check_connection() -> bool:
     """Check if Elasticsearch connection is successful"""
     try:
-        return await es.ping()
+        client = get_elasticsearch_client()
+        return client.ping()
+    except ValueError as e:
+        if "aiohttp" in str(e):
+            logger.error("Missing aiohttp dependency. Make sure aiohttp is installed.")
+            return {"error": "Missing aiohttp dependency", "message": str(e)}
+        else:
+            logger.error(f"Elasticsearch value error: {str(e)}")
+            return False
     except Exception as e:
         logger.error(f"Elasticsearch connection error: {str(e)}")
         return False
 
-async def build_search_query(search_params: SearchQuery) -> Dict[str, Any]:
+def _build_elasticsearch_query(search_params: SearchQuery) -> Dict[str, Any]:
     """Build Elasticsearch query from search parameters"""
     # Calculate pagination
     from_val = (search_params.page - 1) * search_params.page_size
@@ -88,11 +109,17 @@ async def build_search_query(search_params: SearchQuery) -> Dict[str, Any]:
     
     return query
 
-async def search(search_params: SearchQuery) -> SearchResponse:
+def search(search_params: SearchQuery) -> SearchResponse:
     """Execute search against Elasticsearch"""
     try:
-        query = await build_search_query(search_params)
-        response = await es.search(index=settings.es_index, body=query)
+        # Get the Elasticsearch client
+        client = get_elasticsearch_client()
+        
+        # Build the query
+        query = _build_elasticsearch_query(search_params)
+        
+        # Execute the search
+        response = client.search(index=settings.es_index, body=query)
         
         # Process results
         hits = response["hits"]["hits"]
@@ -117,6 +144,11 @@ async def search(search_params: SearchQuery) -> SearchResponse:
                 if "text" in hit["highlight"]:
                     highlights["text"] = hit["highlight"]["text"]
             
+            highlight_obj = SearchHighlight(
+                title=highlights.get("title"),
+                text=highlights.get("text")
+            ) if highlights else None
+            
             results.append(
                 SearchResultItem(
                     id=hit["_id"],
@@ -125,7 +157,8 @@ async def search(search_params: SearchQuery) -> SearchResponse:
                     contributor=source.get("contributor_username", ""),
                     timestamp=source.get("timestamp", ""),
                     score=hit["_score"],
-                    highlights=SearchHighlight(**highlights) if highlights else None
+                    highlights=highlight_obj,
+                    url=f"https://en.wikipedia.org/wiki/{source.get('title', '').replace(' ', '_')}"
                 )
             )
         
