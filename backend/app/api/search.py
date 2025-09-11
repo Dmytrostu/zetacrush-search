@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from app.models.search import SearchQuery, SearchResponse
 from app.services.elasticsearch import search, check_connection
-# Import the new exception classes if you need to catch them specifically
 import logging
 from typing import Dict, Any, Optional
 
@@ -11,7 +10,7 @@ logger = logging.getLogger(__name__)
 @router.get("/health")
 async def health_check():
     """Check if the API and Elasticsearch are healthy"""
-    es_health = await check_connection()
+    es_health = check_connection()  # Removed await
     return {"status": "ok", "elasticsearch": es_health}
 
 @router.post("/search")
@@ -27,7 +26,7 @@ async def search_endpoint(request: Dict[str, Any]):
             sort_by=request.get("sort_by"),
             sort_order=request.get("sort_order", "desc")
         )
-        result = await search(query)
+        result = search(query)  # Removed await
         return result.dict()
     except Exception as e:
         logger.error(f"Search error: {str(e)}")
@@ -51,7 +50,7 @@ async def search_get_endpoint(
             sort_by=sort_by,
             sort_order=sort_order
         )
-        result = await search(search_query)
+        result = search(search_query)  # Removed await
         return result.dict()
     except Exception as e:
         logger.error(f"Search error: {str(e)}")

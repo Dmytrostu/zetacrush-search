@@ -1,15 +1,10 @@
-from elasticsearch import AsyncElasticsearch
-# Replace this line:
-# from elasticsearch.exceptions import ElasticsearchException
-# With this:
-from elasticsearch import ApiError, TransportError  # Use the new exception classes
+from elasticsearch import Elasticsearch, ApiError, TransportError
 from app.config import settings
 from app.models.search import SearchQuery, SearchResponse, SearchResultItem, SearchHighlight
 import logging
 import os
 from typing import Dict, Any, List, Optional
 from functools import lru_cache
-from elasticsearch import Elasticsearch
 
 logger = logging.getLogger(__name__)
 
@@ -25,49 +20,23 @@ def get_elasticsearch_client() -> Elasticsearch:
     
     return client
 
-# Get client instance with fallback to synchronous client if needed
+# Get client instance
 try:
     es = get_elasticsearch_client()
-    logger.info("Successfully initialized AsyncElasticsearch client")
+    logger.info("Successfully initialized Elasticsearch client")
 except Exception as e:
-    # If AsyncElasticsearch fails, fall back to synchronous client
-    logger.warning(f"Failed to initialize AsyncElasticsearch, falling back to synchronous client: {str(e)}")
-    
-    # Import synchronous client
-    from elasticsearch import Elasticsearch
-    
-    es_config = {
-        "request_timeout": 30,
-        "retry_on_timeout": True, 
-        "max_retries": 3
-    }
-    
-    if settings.es_apikey:
-        es_config["api_key"] = settings.es_apikey
-    elif settings.es_user and settings.es_password:
-        es_config["basic_auth"] = (settings.es_user, settings.es_password)
-        
-    # Use synchronous client with a wrapper to make it compatible
-    sync_es = Elasticsearch(settings.es_host, **es_config)
-    
-    # Create a wrapper class to make sync client usable with async syntax
-    class AsyncElasticWrapper:
-        def __init__(self, sync_client):
-            self.client = sync_client
-            
-        async def search(self, *args, **kwargs):
-            return self.client.search(*args, **kwargs)
-            
-        async def ping(self, *args, **kwargs):
-            return self.client.ping(*args, **kwargs)
+    logger.error(f"Failed to initialize Elasticsearch client: {str(e)}")
+    # Re-raise the exception for proper error handling
+    raise
     
     es = AsyncElasticWrapper(sync_es)
     logger.info("Using synchronous Elasticsearch client with async wrapper")
 
-async def check_connection() -> bool:
+def check_connection() -> bool:
     """Check if Elasticsearch connection is successful"""
     try:
-        return await es.ping()
+        client = get_elasticsearch_client()
+        return client.ping()
     except ValueError as e:
         if "aiohttp" in str(e):
             logger.error("Missing aiohttp dependency. Make sure aiohttp is installed.")
@@ -79,7 +48,7 @@ async def check_connection() -> bool:
         logger.error(f"Elasticsearch connection error: {str(e)}")
         return False
 
-async def build_search_query(search_params: SearchQuery) -> Dict[str, Any]:
+def _build_elasticsearch_query(search_params: SearchQuery) -> Dict[str, Any]:
     """Build Elasticsearch query from search parameters"""
     # Calculate pagination
     from_val = (search_params.page - 1) * search_params.page_size
@@ -140,11 +109,17 @@ async def build_search_query(search_params: SearchQuery) -> Dict[str, Any]:
     
     return query
 
-async def search(search_params: SearchQuery) -> SearchResponse:
+def search(search_params: SearchQuery) -> SearchResponse:
     """Execute search against Elasticsearch"""
     try:
-        query = await build_search_query(search_params)
-        response = await es.search(index=settings.es_index, body=query)
+        # Get the Elasticsearch client
+        client = get_elasticsearch_client()
+        
+        # Build the query
+        query = _build_elasticsearch_query(search_params)
+        
+        # Execute the search
+        response = client.search(index=settings.es_index, body=query)
         
         # Process results
         hits = response["hits"]["hits"]
@@ -182,7 +157,8 @@ async def search(search_params: SearchQuery) -> SearchResponse:
                     contributor=source.get("contributor_username", ""),
                     timestamp=source.get("timestamp", ""),
                     score=hit["_score"],
-                    highlights=highlight_obj
+                    highlights=highlight_obj,
+                    url=f"https://en.wikipedia.org/wiki/{source.get('title', '').replace(' ', '_')}"
                 )
             )
         

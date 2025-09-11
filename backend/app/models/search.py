@@ -33,23 +33,27 @@ class SearchHighlight:
 class SearchResultItem:
     def __init__(self, id: str, title: str, text: str, score: float, 
                  contributor: Optional[str] = None, timestamp: Optional[str] = None, 
-                 highlights: Optional[SearchHighlight] = None):
+                 highlights: Optional[SearchHighlight] = None, url: str = ""):
         self.id = id
         self.title = title
-        self.text = text
+        self.text = text  # This will be used as description in the frontend
         self.contributor = contributor
-        self.timestamp = timestamp
+        self.timestamp = timestamp  # This will be mapped to createdAt in frontend
         self.score = score
         self.highlights = highlights
+        self.url = url
         
     def dict(self):
         result = {
             "id": self.id,
             "title": self.title, 
             "text": self.text,
+            "description": self.text,  # Adding description to match frontend expectations
             "contributor": self.contributor,
             "timestamp": self.timestamp,
-            "score": self.score
+            "createdAt": self.timestamp,  # Mapping timestamp to createdAt
+            "score": self.score,
+            "url": self.url
         }
         if self.highlights:
             result["highlights"] = self.highlights.dict()
