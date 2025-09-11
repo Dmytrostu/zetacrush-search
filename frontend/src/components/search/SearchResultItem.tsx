@@ -6,6 +6,9 @@ interface SearchResultItemProps {
 }
 
 const SearchResultItem: React.FC<SearchResultItemProps> = ({ item }) => {
+  // Create a Wikipedia URL from the title
+  const url = item.url || `https://en.wikipedia.org/wiki/${encodeURIComponent(item.title.replace(/ /g, '_'))}`;
+  
   // Format the URL to look like Google's display URL
   const formatUrl = (url: string) => {
     try {
@@ -16,11 +19,26 @@ const SearchResultItem: React.FC<SearchResultItemProps> = ({ item }) => {
     }
   };
 
-  // Mock breadcrumb data
-  const breadcrumb = formatUrl(item.url);
+  // Display breadcrumb data
+  const breadcrumb = formatUrl(url);
   
-  // Format the date - Google often shows dates for results
-  const date = item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '';
+  // Format the date if available
+  const date = item.timestamp ? new Date(item.timestamp).toLocaleDateString() : '';
+  
+  // Use highlighted text if available, otherwise use the regular text
+  const renderTitle = () => {
+    if (item.highlights?.title) {
+      return <span dangerouslySetInnerHTML={{ __html: item.highlights.title[0] }} />;
+    }
+    return item.title;
+  };
+  
+  const renderDescription = () => {
+    if (item.highlights?.text) {
+      return <span dangerouslySetInnerHTML={{ __html: item.highlights.text[0] }} />;
+    }
+    return item.text?.substring(0, 200) + '...';
+  };
 
   return (
     <div className="max-w-2xl">
@@ -33,23 +51,29 @@ const SearchResultItem: React.FC<SearchResultItemProps> = ({ item }) => {
             <p className="text-sm text-zeta-gray-600 dark:text-zeta-gray-400">{date}</p>
           </>
         )}
+        {item.contributor && (
+          <>
+            <span className="mx-2 text-zeta-gray-400">•</span>
+            <p className="text-sm text-zeta-gray-500 dark:text-zeta-gray-500">By {item.contributor}</p>
+          </>
+        )}
       </div>
       
       {/* Title - Google style */}
       <h3 className="group">
         <a 
-          href={item.url} 
+          href={url} 
           target="_blank" 
           rel="noopener noreferrer"
           className="text-xl text-zeta-gray-800 dark:text-zeta-gray-300 font-medium group-hover:underline"
         >
-          {item.title}
+          {renderTitle()}
         </a>
       </h3>
       
       {/* Description - Google style */}
-      <p className="text-sm text-zeta-gray-700 dark:text-zeta-gray-300 mt-1 line-clamp-2">
-        {item.description}
+      <p className="text-sm text-zeta-gray-700 dark:text-zeta-gray-300 mt-1 line-clamp-3">
+        {renderDescription()}
       </p>
       
       {/* Additional links - Like Google's sitelinks */}

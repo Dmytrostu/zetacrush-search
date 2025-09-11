@@ -1,5 +1,5 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
-import { SearchResult, SearchFilter } from '../types/search.types';
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import { SearchResult, SearchFilter, SearchResponse } from '../types/search.types';
 import { searchApi } from '../api';
 
 interface SearchContextType {
@@ -11,7 +11,13 @@ interface SearchContextType {
   setIsLoading: (loading: boolean) => void;
   filters: SearchFilter;
   setFilters: React.Dispatch<React.SetStateAction<SearchFilter>>;
-  performSearch: (query: string) => Promise<void>;
+  performSearch: (query: string, page?: number) => Promise<void>;
+  totalResults: number;
+  currentPage: number;
+  setCurrentPage: (page: number) => void;
+  pageSize: number;
+  suggestions: string[];
+  apiHealthy: boolean;
 }
 
 const defaultFilters: SearchFilter = {
@@ -30,17 +36,38 @@ export const SearchContextProvider: React.FC<{ children: ReactNode }> = ({ child
   const [isLoading, setIsLoading] = useState(false);
   const [filters, setFilters] = useState<SearchFilter>(defaultFilters);
 
+  const [totalResults, setTotalResults] = useState<number>(0);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize] = useState<number>(10);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [apiHealthy, setApiHealthy] = useState<boolean>(true);
+
+  // Check API health on mount
+  useEffect(() => {
+    const checkApiHealth = async () => {
+      const isHealthy = await searchApi.checkHealth();
+      setApiHealthy(isHealthy);
+    };
+    checkApiHealth();
+  }, []);
+
   // Function to perform search
-  const performSearch = async (searchQuery: string) => {
+  const performSearch = async (searchQuery: string, page: number = 1) => {
     try {
       setIsLoading(true);
       setQuery(searchQuery);
+      setCurrentPage(page);
       
-      const results = await searchApi.search(searchQuery);
-      setSearchResults(results);
+      const response = await searchApi.search(searchQuery, page, pageSize);
+      
+      setSearchResults(response.results || []);
+      setTotalResults(response.total || 0);
+      setSuggestions(response.suggest || []);
     } catch (error) {
       console.error('Search error:', error);
       setSearchResults([]);
+      setTotalResults(0);
+      setSuggestions([]);
     } finally {
       setIsLoading(false);
     }
@@ -55,7 +82,13 @@ export const SearchContextProvider: React.FC<{ children: ReactNode }> = ({ child
     setIsLoading,
     filters,
     setFilters,
-    performSearch
+    performSearch,
+    totalResults,
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    suggestions,
+    apiHealthy
   };
 
   return <SearchContext.Provider value={value}>{children}</SearchContext.Provider>;
