@@ -2,6 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import search
+from app.api import suggestions
 from app.config import settings
 import logging
 import os
@@ -35,6 +36,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(search.router)
+app.include_router(suggestions.router)
 
 @app.get("/")
 async def root():

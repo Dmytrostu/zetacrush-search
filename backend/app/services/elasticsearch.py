@@ -9,36 +9,21 @@ import logging
 import os
 from typing import Dict, Any, List, Optional
 from functools import lru_cache
+from elasticsearch import Elasticsearch
 
 logger = logging.getLogger(__name__)
 
 # Configure Elasticsearch client options
 @lru_cache()
-def get_elasticsearch_client():
-    """Get a cached Elasticsearch client to avoid recreating it on every request in serverless"""
-    import aiohttp
-    from elasticsearch import AsyncElasticsearch, AiohttpHttpNode
+
+def get_elasticsearch_client() -> Elasticsearch:
+    """Get or create an Elasticsearch client"""
+    from app.config import settings
     
-    # Verify aiohttp is available
-    if not aiohttp:
-        raise ImportError("aiohttp must be installed for AsyncElasticsearch")
+    # Create a new client or return an existing one
+    client = Elasticsearch( settings.es_host, api_key=settings.es_apikey)
     
-    es_config = {
-        "request_timeout": 30,  # Add timeout for serverless environment
-        "retry_on_timeout": True,
-        "max_retries": 3,
-        "connections_per_node": 10,
-        "transport_class": "elastic_transport.AsyncTransport",
-        "node_class": "elastic_transport.AiohttpHttpNode"
-    }
-    
-    if settings.es_apikey:
-        es_config["api_key"] = settings.es_apikey
-    elif settings.es_user and settings.es_password:
-        es_config["basic_auth"] = (settings.es_user, settings.es_password)
-    
-    logger.info(f"Creating Elasticsearch client for host: {settings.es_host}")
-    return AsyncElasticsearch(settings.es_host, **es_config)
+    return client
 
 # Get client instance with fallback to synchronous client if needed
 try:
