@@ -4,6 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import search
 from app.config import settings
 import logging
+import os
+
+# Check if running in serverless environment
+IS_SERVERLESS = os.environ.get("VERCEL", "0") == "1"
 
 # Configure logging
 logging.basicConfig(
@@ -15,12 +19,15 @@ app = FastAPI(
     title=settings.app_name,
     description="API for searching wiki articles in Elasticsearch",
     version="1.0.0",
+    # Special configuration for serverless environments
+    root_path="/api" if IS_SERVERLESS else "",
 )
 
-# Configure CORS
+# Configure CORS - More permissive in serverless environments
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    # In serverless, allow all origins to prevent CORS issues
+    allow_origins=["*"] if IS_SERVERLESS else settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
