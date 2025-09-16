@@ -121,12 +121,10 @@ export const SearchProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setIsLoading(true);
 
     try {
-      const response = await apiClient.get('/api/search', {
-        params: {
-          query: searchQuery,
-          page,
-          page_size: size
-        }
+      const response = await apiClient.post('/api/search', {
+        query: searchQuery,
+        page,
+        page_size: size
       });
 
       const data = response.data;

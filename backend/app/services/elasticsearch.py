@@ -3,6 +3,7 @@ from app.config import settings
 from app.models.search import SearchQuery, SearchResponse, SearchResultItem, SearchHighlight
 import logging
 import os
+import re  # ADD THIS LINE
 from typing import Dict, Any, List, Optional
 from functools import lru_cache
 
@@ -108,6 +109,17 @@ def _build_elasticsearch_query(search_params: SearchQuery) -> Dict[str, Any]:
     }
     
     return query
+import re  # ADD THIS IMPORT AT THE TOP
+
+def count_sentences(text: str) -> int:
+    """Count sentences in text"""
+    if not text:
+        return 0
+    
+    # Split by sentence endings and filter out empty strings
+    sentences = re.split(r'[.!?]+', text.strip())
+    sentences = [s.strip() for s in sentences if s.strip()]
+    return len(sentences)
 
 def search(search_params: SearchQuery) -> SearchResponse:
     """Execute search against Elasticsearch"""
@@ -115,8 +127,12 @@ def search(search_params: SearchQuery) -> SearchResponse:
         # Get the Elasticsearch client
         client = get_elasticsearch_client()
         
-        # Build the query
+        # Build the query - GET MORE RESULTS TO FILTER FROM
         query = _build_elasticsearch_query(search_params)
+        
+        # Increase size to get more results for filtering
+        original_size = query["size"]
+        query["size"] = min(100, original_size * 10)  # Get 10x more results or 100 max
         
         # Execute the search
         response = client.search(index=settings.es_index, body=query)
@@ -132,8 +148,8 @@ def search(search_params: SearchQuery) -> SearchResponse:
                 for option in suggestion_list["options"]:
                     suggestions.append(option["text"])
         
-        # Format results
-        results = []
+        # Format ALL results first
+        all_results = []
         for hit in hits:
             source = hit["_source"]
             highlights = {}
@@ -149,11 +165,14 @@ def search(search_params: SearchQuery) -> SearchResponse:
                 text=highlights.get("text")
             ) if highlights else None
             
-            results.append(
+            # Keep full text for sentence counting
+            full_text = source.get("text", "")
+            
+            all_results.append(
                 SearchResultItem(
                     id=hit["_id"],
                     title=source.get("title", ""),
-                    text=source.get("text", "")[:500],  # Truncate text for preview
+                    text=full_text,  # Keep full text
                     contributor=source.get("contributor_username", ""),
                     timestamp=source.get("timestamp", ""),
                     score=hit["_score"],
@@ -162,11 +181,22 @@ def search(search_params: SearchQuery) -> SearchResponse:
                 )
             )
         
+        # FILTER: Only keep results with 6+ sentences
+        filtered_results = []
+        for result in all_results:
+            sentence_count = count_sentences(result.text)
+            if sentence_count >= 6:
+                filtered_results.append(result)
+        
+        # Sort by score (descending) and take top 10
+        filtered_results.sort(key=lambda x: x.score, reverse=True)
+        final_results = filtered_results[:search_params.page_size]
+        
         return SearchResponse(
-            total=total,
+            total=len(final_results),  # Return filtered count
             page=search_params.page,
             page_size=search_params.page_size,
-            results=results,
+            results=final_results,
             suggest=suggestions if suggestions else None
         )
         

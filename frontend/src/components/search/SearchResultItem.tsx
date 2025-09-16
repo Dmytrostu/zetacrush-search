@@ -5,77 +5,102 @@ import { SearchResult } from '../../context/SearchContext';
 interface SearchResultItemProps {
   result: SearchResult;
 }
+// Function to extract top 3 clean sentences
+const extractTopSentences = (text: string, count: number = 3): string => {
+  if (!text) return '';
+  
+  // First, remove all MediaWiki syntax and references
+  let cleaned = text;
+  
+  // Remove citation templates
+  cleaned = cleaned.replace(/\{\{Cite[^}]+\}\}/gi, '');
+  cleaned = cleaned.replace(/\{\{cite[^}]+\}\}/gi, '');
+  
+  // Remove all other templates
+  cleaned = cleaned.replace(/\{\{[^}]+\}\}/g, '');
+  
+  // Remove references
+  cleaned = cleaned.replace(/<ref.*?>.*?<\/ref>/g, '');
+  cleaned = cleaned.replace(/\[\d+\]/g, '');
+  
+  // Remove internal links but keep the display text
+  cleaned = cleaned.replace(/\[\[([^|]+)\|([^\]]+)\]\]/g, '$2');
+  cleaned = cleaned.replace(/\[\[([^\]]+)\]\]/g, '$1');
+  
+  // Remove external links
+  cleaned = cleaned.replace(/\[http[^\]]+\]/g, '');
+  cleaned = cleaned.replace(/\[(https?:\/\/[^\s\]]+)([^\]]*)\]/g, '$2');
+  
+  // Remove tables
+  cleaned = cleaned.replace(/\{\|[\s\S]*?\|\}/g, '');
+  
+  // Remove any remaining markup
+  cleaned = cleaned.replace(/'''(.*?)'''/g, '$1'); // Bold
+  cleaned = cleaned.replace(/''(.*?)''/g, '$1'); // Italic
+  cleaned = cleaned.replace(/===+([^=]+)===+/g, ''); // Headers
+  
+  // Clean up extra whitespace and newlines
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  
+  // Split into sentences using regex
+  const sentences = cleaned.split(/[.!?]+/).filter(sentence => {
+    const trimmed = sentence.trim();
+    
+    // Filter criteria for human-readable sentences
+    if (trimmed.length < 20) return false; // Too short
+    
+    // Check if sentence contains mainly alphabetic characters
+    const letterCount = (trimmed.match(/[a-zA-Z]/g) || []).length;
+    const totalLength = trimmed.length;
+    const letterRatio = letterCount / totalLength;
+    
+    // Sentence should be at least 60% letters
+    if (letterRatio < 0.6) return false;
+    
+    // Exclude sentences with excessive markup punctuation
+    const markupChars = (trimmed.match(/[{}[\]()=|*#:;]/g) || []).length;
+    if (markupChars > 3) return false; // Too many markup characters
+    
+    // Exclude sentences that are mostly numbers or symbols
+    const numbersAndSymbols = (trimmed.match(/[0-9@#$%^&*+=<>]/g) || []).length;
+    if (numbersAndSymbols > totalLength * 0.3) return false; // More than 30% numbers/symbols
+    
+    // Exclude sentences that look like code or markup
+    if (/^[A-Z_]+\s*[:=]/.test(trimmed)) return false; // Looks like code
+    if (/^\d+\s*[.:]\s*/.test(trimmed)) return false; // Numbered lists
+    if (/^[*-]\s+/.test(trimmed)) return false; // Bullet points
+    
+    // Must contain at least one common English word pattern
+    const hasCommonWords = /\b(the|a|an|and|or|but|in|on|at|to|for|of|with|by|from|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|may|might|can|this|that|these|those)\b/i.test(trimmed);
+    if (!hasCommonWords) return false;
+    
+    return true;
+  });
+  
+  // Take the first 'count' sentences that pass all filters
+  const topSentences = sentences.slice(0, count);
+  
+  // Join them back with periods and clean up
+  return topSentences
+    .map(sentence => sentence.trim())
+    .join('. ')
+    .replace(/\.\s*$/, '') + '.'; // Ensure it ends with a single period
+};
 
 // Enhanced helper function to transform MediaWiki text to HTML
 const parseMediaWikiText = (text: string): string => {
-  // Existing implementation...
   try {
-    // Basic transformations for common MediaWiki syntax
     let html = text;
     
-    // Handle citation templates
-    html = html.replace(/\{\{Cite web\|url = ([^|]+)\|date=([^|]+)\|access-date=([^|]+)\|publisher=([^|]+)\|first=([^|]+)\|last=([^|]+)\|website=([^|]+)\}\}/gi, 
-      '<span class="citation">[Source: $4, $2]</span>');
-    
-    // Handle simpler citation format
-    html = html.replace(/\{\{Cite web\|url = ([^}]+)\}\}/gi, 
-      '<span class="citation">[Web citation]</span>');
-    
-    // Handle other citation formats
-    html = html.replace(/\{\{cite[^}]+\}\}/gi, '<span class="citation">[Citation]</span>');
-    
-    // Handle highlighted content from search results
-    html = html.replace(/<mark>(.*?)<\/mark>/g, '<span class="highlight">$1</span>');
-    
-    // Clean up citation/reference templates with pipe syntax
-    html = html.replace(/\{\{[^}]+\|[^}]+\}\}/g, '');
-    
-    // Clean up other templates
-    html = html.replace(/\{\{[^}]+\}\}/g, '');
+    // Handle highlighted content from search results first
+    html = html.replace(/<mark>(.*?)<\/mark>/g, '<span class="highlight bg-yellow-200 dark:bg-yellow-800">$1</span>');
     
     // Handle bold and italic
     html = html.replace(/'''(.*?)'''/g, '<strong>$1</strong>');
     html = html.replace(/''(.*?)''/g, '<em>$1</em>');
     
-    // Handle headings (limit to h4-h6 as the component already has main heading)
-    html = html.replace(/=====(.*?)=====/g, '<h6>$1</h6>');
-    html = html.replace(/====(.*?)====/g, '<h5>$1</h5>');
-    html = html.replace(/===(.*?)===/g, '<h4>$1</h4>');
-    
-    // Handle lists
-    const bulletListRegex = /^\* (.*?)$/gm;
-    html = html.replace(bulletListRegex, '<li>$1</li>');
-    html = html.replace(/<li>.*?(<\/li>.*?)+/g, '<ul>$&</ul>');
-    
-    const numberListRegex = /^# (.*?)$/gm;
-    html = html.replace(numberListRegex, '<li>$1</li>');
-    html = html.replace(/<li>.*?(<\/li>.*?)+/g, '<ol>$&</ol>');
-    
-    // Handle internal links
-    html = html.replace(/\[\[([^|]+)\|([^\]]+)\]\]/g, '<a href="https://en.wikipedia.org/wiki/$1" target="_blank">$2</a>');
-    html = html.replace(/\[\[([^\]]+)\]\]/g, '<a href="https://en.wikipedia.org/wiki/$1" target="_blank">$1</a>');
-    
-    // Handle external links
-    html = html.replace(/\[(\S+) (.*?)\]/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$2</a>');
-    html = html.replace(/\[(\S+)\]/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
-    
-    // Remove references
-    html = html.replace(/<ref.*?>.*?<\/ref>/g, '');
-    html = html.replace(/\[\d+\]/g, '');
-    
-    // Remove tables (or replace with simple version)
-    html = html.replace(/\{\|[\s\S]*?\|\}/g, '');
-    
-    // Handle piped links that weren't caught earlier
-    html = html.replace(/\[\[([^|]+)\|([^\]]+)\]\]/g, '$2');
-    html = html.replace(/\[\[([^\]]+)\]\]/g, '$1');
-    
-    // Convert line breaks
+    // Convert line breaks to proper paragraphs
     html = html.replace(/\n{2,}/g, '</p><p>');
-    
-    // Clean up any remaining MediaWiki syntax
-    html = html.replace(/\{\{.*?\}\}/g, ''); // Remove any remaining templates
-    html = html.replace(/\[\[|\]\]/g, ''); // Remove any remaining [[ or ]]
     
     // Wrap in paragraph if not already done
     if (!html.startsWith('<p>')) {
@@ -89,33 +114,24 @@ const parseMediaWikiText = (text: string): string => {
   }
 };
 
-// Additional pre-cleaning function
-const preCleanText = (text: string): string => {
-  // Handle specific patterns like the examples you shared
-  let cleaned = text;
-  
-  // Clean citation/web|url patterns 
-  cleaned = cleaned.replace(/\{\{Cite web\|url = http([^}]+)\}\}/g, '');
-  
-  // Clean platform pattern from example
-  cleaned = cleaned.replace(/platform GitHub for \$\d+\.\d+ billion\|date=([^|]+)\|access-date=([^|]+)\|publisher=([^|]+)\|first=([^|]+)\|last=([^|]+)\|website=([^}]+)\}\}/g, '');
-  
-  return cleaned;
-};
-
 const SearchResultItem: React.FC<SearchResultItemProps> = ({ result }) => {
   const { theme } = useTheme();
   const [parsedHtml, setParsedHtml] = useState<string>("");
 
   useEffect(() => {
     // Get highlighted content or fall back to regular content
-    const textContent = result.highlights?.text ? 
-      result.highlights.text[0] : 
-      result.text.substring(0, 1000) + (result.text.length > 1000 ? '...' : '');
+    let textContent = '';
     
-    // Pre-clean and then parse the content
-    const cleanedContent = preCleanText(textContent);
-    setParsedHtml(parseMediaWikiText(cleanedContent));
+    // if (result.highlights?.text) {
+    //   // If we have highlighted text, use it
+    //   textContent = result.highlights.text[0];
+    // } else {
+      // Extract top 3 clean sentences from the full text
+      textContent = extractTopSentences(result.text, 3);
+    // }
+    
+    // Parse the content for display
+    setParsedHtml(parseMediaWikiText(textContent));
   }, [result]);
 
   return (
@@ -141,16 +157,30 @@ const SearchResultItem: React.FC<SearchResultItemProps> = ({ result }) => {
         </span>
       </div>
             
-      {/* Render the parsed MediaWiki content with proper wrapping */}
+      {/* Render the top 3 clean sentences */}
       <div 
-        className={`mt-2 text-sm wiki-content break-words overflow-hidden ${
+        className={`mt-2 text-sm leading-relaxed break-words overflow-hidden ${
           theme === 'dark' ? 'text-zeta-gray-300' : 'text-zeta-gray-700'
         }`}
         dangerouslySetInnerHTML={{ __html: parsedHtml }}
       />
       
-      {/* Add custom CSS to fix link and list item wrapping inside the dangerouslySetInnerHTML */}
+      {/* Custom CSS for highlights */}
       <style>{`
+        .highlight {
+          padding: 1px 3px;
+          border-radius: 2px;
+          font-weight: 500;
+        }
+        .wiki-content p {
+          margin: 0.5rem 0;
+        }
+        .wiki-content p:first-child {
+          margin-top: 0;
+        }
+        .wiki-content p:last-child {
+          margin-bottom: 0;
+        }
       `}</style>
       
       {/* Display metadata if available */}
