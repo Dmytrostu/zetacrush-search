@@ -24,6 +24,21 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
 logger.info(f"Using device: {device}")
 
+def get_total_pages(xml_path):
+    """Count total pages in XML for percentage calculation"""
+    try:
+        total = 0
+        context = ET.iterparse(xml_path, events=("end",))
+        for event, elem in context:
+            if elem.tag.endswith('page'):
+                total += 1
+                elem.clear()  # Free memory
+        logger.info(f"Total pages in XML: {total}")
+        return total
+    except Exception as e:
+        logger.warning(f"Could not count pages: {e}")
+        return None
+
 def extract_fields(elem):
     """Extract ONLY essential fields - SPEED OPTIMIZED"""
     
@@ -66,12 +81,9 @@ def extract_fields(elem):
     }
 
 def create_fast_index(es, index_name):
-    """Create SPEED-OPTIMIZED semantic search index"""
+    """Create SERVERLESS-COMPATIBLE semantic search index"""
+    # FIXED: Removed serverless-incompatible settings
     mapping = {
-        "settings": {
-            "number_of_replicas": 0,  # SPEED: No replicas during upload
-            "refresh_interval": "-1"  # SPEED: Disable refresh during upload
-        },
         "mappings": {
             "properties": {
                 "title": {
@@ -104,8 +116,9 @@ def create_fast_index(es, index_name):
         logger.info(f"Index '{index_name}' already exists")
         return True
     
+    # FIXED: Use only mapping for serverless
     es.indices.create(index=index_name, **mapping)
-    logger.info(f"Created FAST semantic index: {index_name}")
+    logger.info(f"Created SERVERLESS semantic index: {index_name}")
     return True
 
 def process_batch_embeddings(articles):
@@ -143,15 +156,26 @@ def process_batch_embeddings(articles):
     
     return articles
 
-def process_articles(xml_path):
-    """Process articles in LARGE batches"""
+def process_articles(xml_path, total_pages=None):
+    """Process articles in LARGE batches with percentage tracking"""
     try:
         context = ET.iterparse(xml_path, events=("end",))
         batch = []
         batch_size = 200  # SPEED: Much larger batches
+        processed_pages = 0
+        last_logged_percent = -1
         
         for event, elem in context:
             if elem.tag.endswith('page'):
+                processed_pages += 1
+                
+                # Log percentage progress every 1%
+                if total_pages and total_pages > 0:
+                    current_percent = int((processed_pages / total_pages) * 100)
+                    if current_percent > last_logged_percent and current_percent % 1 == 0:
+                        logger.info(f"📊 Processing progress: {current_percent}% ({processed_pages}/{total_pages} pages)")
+                        last_logged_percent = current_percent
+                
                 try:
                     article = extract_fields(elem)
                     if article:
@@ -172,12 +196,16 @@ def process_articles(xml_path):
         # Process remaining articles
         if batch:
             yield process_batch_embeddings(batch)
+        
+        # Final percentage
+        if total_pages:
+            logger.info(f"📊 Processing complete: 100% ({processed_pages}/{total_pages} pages)")
             
     except ET.ParseError as e:
         logger.warning(f"XML ParseError: {e}")
 
 def parse_and_upload_fast():
-    """MAXIMUM SPEED parse and upload"""
+    """MAXIMUM SPEED parse and upload - SERVERLESS COMPATIBLE"""
     
     # Connect to Elasticsearch
     es = Elasticsearch(ES_HOST, api_key=ES_APIKEY)
@@ -186,11 +214,15 @@ def parse_and_upload_fast():
         logger.error(f"Could not connect to Elasticsearch at {ES_HOST}")
         return
     
-    logger.info("Connected to Elasticsearch")
+    logger.info("Connected to Elasticsearch Serverless")
     
     # Create fast index
     if not create_fast_index(es, ES_INDEX):
         return
+    
+    # Count total pages for percentage tracking
+    logger.info("Counting total pages for progress tracking...")
+    total_pages = get_total_pages(XML_FILE_PATH)
     
     # Process and upload
     total_uploaded = 0
@@ -199,7 +231,7 @@ def parse_and_upload_fast():
     
     logger.info(f"Starting FAST processing from {XML_FILE_PATH}")
     
-    for batch_articles in process_articles(XML_FILE_PATH):
+    for batch_articles in process_articles(XML_FILE_PATH, total_pages):
         if not batch_articles:
             continue
             
@@ -225,28 +257,21 @@ def parse_and_upload_fast():
             total_uploaded += success
             total_processed += len(actions)
             
-            # SPEED: Log less frequently
-            if total_uploaded % 1000 == 0:
+            # SPEED: Log upload progress less frequently
+            if total_uploaded % 5000 == 0:
                 elapsed = (datetime.now() - start_time).total_seconds()
                 rate = total_uploaded / elapsed if elapsed > 0 else 0
-                logger.info(f"Total uploaded: {total_uploaded}, Rate: {rate:.0f} docs/sec")
+                logger.info(f"📤 Upload progress: {total_uploaded} docs uploaded, Rate: {rate:.0f} docs/sec")
             
         except Exception as e:
             logger.error(f"Error uploading batch: {e}")
     
-    # SPEED: Re-enable refresh and optimize
-    logger.info("Optimizing index for search speed...")
-    es.indices.put_settings(
-        index=ES_INDEX,
-        body={
-            "refresh_interval": "1s",
-            "number_of_replicas": 0
-        }
-    )
-    
-    # SPEED: Force merge for faster search
-    es.indices.forcemerge(index=ES_INDEX, max_num_segments=1)
-    es.indices.refresh(index=ES_INDEX)
+    # SERVERLESS: Skip optimization settings (not available)
+    logger.info("Refreshing index...")
+    try:
+        es.indices.refresh(index=ES_INDEX)
+    except Exception as e:
+        logger.warning(f"Could not refresh index (serverless limitation): {e}")
     
     elapsed = (datetime.now() - start_time).total_seconds()
     rate = total_uploaded / elapsed if elapsed > 0 else 0
