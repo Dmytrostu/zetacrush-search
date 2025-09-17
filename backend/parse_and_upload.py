@@ -75,7 +75,7 @@ def extract_fields(elem):
     
     return {
         "title": title,
-        "text": text[:2000] + "..." if len(text) > 2000 else text,
+        "text": text,
         "title_for_embedding": title,
         "text_for_embedding": text[:1500],
         "timestamp": timestamp,
