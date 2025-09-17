@@ -7,8 +7,15 @@ import logging
 from datetime import datetime
 import torch
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
+# Setup logging with file output
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('upload.log'),  # Save to file
+        logging.StreamHandler()  # Also print to console
+    ]
+)
 logger = logging.getLogger(__name__)
 
 # Load environment variables
@@ -24,20 +31,15 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
 logger.info(f"Using device: {device}")
 
-def get_total_pages(xml_path):
-    """Count total pages in XML for percentage calculation"""
+def get_file_size_gb(file_path):
+    """Get file size in GB"""
     try:
-        total = 0
-        context = ET.iterparse(xml_path, events=("end",))
-        for event, elem in context:
-            if elem.tag.endswith('page'):
-                total += 1
-                elem.clear()  # Free memory
-        logger.info(f"Total pages in XML: {total}")
-        return total
+        size_bytes = os.path.getsize(file_path)
+        size_gb = size_bytes / (1024**3)
+        return size_gb
     except Exception as e:
-        logger.warning(f"Could not count pages: {e}")
-        return None
+        logger.warning(f"Could not get file size: {e}")
+        return 0
 
 def extract_fields(elem):
     """Extract ONLY essential fields - SPEED OPTIMIZED"""
@@ -68,43 +70,42 @@ def extract_fields(elem):
             contributor_username = get_text(contributor, './{*}username')
     
     # SPEED: Super simple validation
-    if not title or not text or len(text) < 50:  # Reduced threshold
+    if not title or not text or len(text) < 50:
         return None
     
     return {
         "title": title,
-        "text": text[:2000] + "..." if len(text) > 2000 else text,  # SPEED: Truncate stored text
+        "text": text[:2000] + "..." if len(text) > 2000 else text,
         "title_for_embedding": title,
-        "text_for_embedding": text[:1500],  # SPEED: Shorter embeddings
+        "text_for_embedding": text[:1500],
         "timestamp": timestamp,
-        "contributor_username": contributor_username[:30] if contributor_username else ""  # SPEED: Truncate
+        "contributor_username": contributor_username[:30] if contributor_username else ""
     }
 
 def create_fast_index(es, index_name):
     """Create SERVERLESS-COMPATIBLE semantic search index"""
-    # FIXED: Removed serverless-incompatible settings
     mapping = {
         "mappings": {
             "properties": {
                 "title": {
                     "type": "text",
-                    "analyzer": "standard"  # SPEED: Faster than english
+                    "analyzer": "standard"
                 },
                 "text": {
                     "type": "text",
-                    "analyzer": "standard"  # SPEED: Faster than english
+                    "analyzer": "standard"
                 },
                 "title_embedding": {
                     "type": "dense_vector",
                     "dims": 384,
                     "index": True,
-                    "similarity": "dot_product"  # SPEED: Faster than cosine
+                    "similarity": "dot_product"
                 },
                 "text_embedding": {
                     "type": "dense_vector",
                     "dims": 384,
                     "index": True,
-                    "similarity": "dot_product"  # SPEED: Faster than cosine
+                    "similarity": "dot_product"
                 },
                 "timestamp": {"type": "date"},
                 "contributor_username": {"type": "keyword"}
@@ -116,7 +117,6 @@ def create_fast_index(es, index_name):
         logger.info(f"Index '{index_name}' already exists")
         return True
     
-    # FIXED: Use only mapping for serverless
     es.indices.create(index=index_name, **mapping)
     logger.info(f"Created SERVERLESS semantic index: {index_name}")
     return True
@@ -134,15 +134,15 @@ def process_batch_embeddings(articles):
     title_embeddings = model.encode(
         titles, 
         show_progress_bar=False, 
-        batch_size=64,  # SPEED: Larger batch
-        normalize_embeddings=True,  # SPEED: For dot_product similarity
+        batch_size=64,
+        normalize_embeddings=True,
         convert_to_tensor=False
     )
     text_embeddings = model.encode(
         texts, 
         show_progress_bar=False, 
-        batch_size=64,  # SPEED: Larger batch
-        normalize_embeddings=True,  # SPEED: For dot_product similarity
+        batch_size=64,
+        normalize_embeddings=True,
         convert_to_tensor=False
     )
     
@@ -156,25 +156,21 @@ def process_batch_embeddings(articles):
     
     return articles
 
-def process_articles(xml_path, total_pages=None):
-    """Process articles in LARGE batches with percentage tracking"""
+def process_articles_fast(xml_path):
+    """Process articles WITHOUT counting total first - MUCH FASTER"""
     try:
         context = ET.iterparse(xml_path, events=("end",))
         batch = []
-        batch_size = 200  # SPEED: Much larger batches
+        batch_size = 200
         processed_pages = 0
-        last_logged_percent = -1
         
         for event, elem in context:
             if elem.tag.endswith('page'):
                 processed_pages += 1
                 
-                # Log percentage progress every 1%
-                if total_pages and total_pages > 0:
-                    current_percent = int((processed_pages / total_pages) * 100)
-                    if current_percent > last_logged_percent and current_percent % 1 == 0:
-                        logger.info(f"📊 Processing progress: {current_percent}% ({processed_pages}/{total_pages} pages)")
-                        last_logged_percent = current_percent
+                # Log every 1000 pages instead of percentage
+                if processed_pages % 1000 == 0:
+                    logger.info(f"📊 Processed {processed_pages:,} pages so far...")
                 
                 try:
                     article = extract_fields(elem)
@@ -189,7 +185,6 @@ def process_articles(xml_path, total_pages=None):
                     elem.clear()  # Free memory
                     
                 except Exception as e:
-                    # SPEED: Skip logging individual errors
                     elem.clear()
                     continue
         
@@ -197,15 +192,13 @@ def process_articles(xml_path, total_pages=None):
         if batch:
             yield process_batch_embeddings(batch)
         
-        # Final percentage
-        if total_pages:
-            logger.info(f"📊 Processing complete: 100% ({processed_pages}/{total_pages} pages)")
+        logger.info(f"📊 Total pages processed: {processed_pages:,}")
             
     except ET.ParseError as e:
         logger.warning(f"XML ParseError: {e}")
 
 def parse_and_upload_fast():
-    """MAXIMUM SPEED parse and upload - SERVERLESS COMPATIBLE"""
+    """MAXIMUM SPEED parse and upload - NO PRE-COUNTING"""
     
     # Connect to Elasticsearch
     es = Elasticsearch(ES_HOST, api_key=ES_APIKEY)
@@ -216,22 +209,27 @@ def parse_and_upload_fast():
     
     logger.info("Connected to Elasticsearch Serverless")
     
+    # Check file size
+    file_size_gb = get_file_size_gb(XML_FILE_PATH)
+    logger.info(f"📁 File size: {file_size_gb:.2f} GB")
+    
     # Create fast index
     if not create_fast_index(es, ES_INDEX):
         return
     
-    # Count total pages for percentage tracking
-    logger.info("Counting total pages for progress tracking...")
-    total_pages = get_total_pages(XML_FILE_PATH)
+    # FIXED: Skip total counting for large files
+    if file_size_gb > 10:  # Skip counting for files > 10GB
+        logger.info(f"⚡ Large file detected ({file_size_gb:.1f}GB). Skipping total count for speed.")
+        logger.info("📊 Progress will be shown as: pages processed, docs uploaded, rate")
     
     # Process and upload
     total_uploaded = 0
     total_processed = 0
     start_time = datetime.now()
     
-    logger.info(f"Starting FAST processing from {XML_FILE_PATH}")
+    logger.info(f"🚀 Starting FAST processing from {XML_FILE_PATH}")
     
-    for batch_articles in process_articles(XML_FILE_PATH, total_pages):
+    for batch_articles in process_articles_fast(XML_FILE_PATH):
         if not batch_articles:
             continue
             
@@ -250,41 +248,39 @@ def parse_and_upload_fast():
                 actions, 
                 stats_only=True, 
                 raise_on_error=False,
-                chunk_size=200,  # SPEED: Much larger chunks
-                request_timeout=300,  # SPEED: Longer timeout
-                max_chunk_bytes=100 * 1024 * 1024  # SPEED: 100MB chunks
+                chunk_size=200,
+                request_timeout=300,
+                max_chunk_bytes=100 * 1024 * 1024
             )
             total_uploaded += success
             total_processed += len(actions)
             
-            # SPEED: Log upload progress less frequently
-            if total_uploaded % 5000 == 0:
+            # Log upload progress frequently for large files
+            if total_uploaded % 2000 == 0:  # Every 2000 docs
                 elapsed = (datetime.now() - start_time).total_seconds()
                 rate = total_uploaded / elapsed if elapsed > 0 else 0
-                logger.info(f"📤 Upload progress: {total_uploaded} docs uploaded, Rate: {rate:.0f} docs/sec")
+                logger.info(f"📤 {total_uploaded:,} docs uploaded | Rate: {rate:.0f} docs/sec | Time: {elapsed/60:.1f}min")
             
         except Exception as e:
             logger.error(f"Error uploading batch: {e}")
     
-    # SERVERLESS: Skip optimization settings (not available)
-    logger.info("Refreshing index...")
-    try:
-        es.indices.refresh(index=ES_INDEX)
-    except Exception as e:
-        logger.warning(f"Could not refresh index (serverless limitation): {e}")
-    
+    # Final results
     elapsed = (datetime.now() - start_time).total_seconds()
     rate = total_uploaded / elapsed if elapsed > 0 else 0
     
     logger.info(f"✅ FAST Upload complete!")
-    logger.info(f"✅ Processed: {total_processed}")
-    logger.info(f"✅ Uploaded: {total_uploaded}")
-    logger.info(f"✅ Time: {elapsed:.1f} seconds")
+    logger.info(f"✅ Processed: {total_processed:,}")
+    logger.info(f"✅ Uploaded: {total_uploaded:,}")
+    logger.info(f"✅ Time: {elapsed/60:.1f} minutes")
     logger.info(f"✅ Rate: {rate:.0f} documents/second")
     
-    # Final count
-    final_count = es.count(index=ES_INDEX)["count"]
-    logger.info(f"✅ Index contains: {final_count} documents")
+    # Refresh and final count
+    try:
+        es.indices.refresh(index=ES_INDEX)
+        final_count = es.count(index=ES_INDEX)["count"]
+        logger.info(f"✅ Index contains: {final_count:,} documents")
+    except Exception as e:
+        logger.warning(f"Could not get final count: {e}")
 
 if __name__ == "__main__":
     parse_and_upload_fast()
