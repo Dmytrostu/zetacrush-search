@@ -1,11 +1,11 @@
 import os
-import re
 import xml.etree.ElementTree as ET
 from elasticsearch import Elasticsearch, helpers
+from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
-from typing import Dict, Any, List, Optional
 import logging
 from datetime import datetime
+import torch
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -15,446 +15,251 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 ES_HOST = os.getenv("ES_HOST", "http://localhost:9200")
-ES_USER = os.getenv("ES_USER", "")
 ES_APIKEY = os.getenv("ES_APIKEY", "")
-ES_INDEX = os.getenv("ES_INDEX", "wiki_articles")
+ES_INDEX = os.getenv("ES_INDEX", "wiki_semantic_fast")
 XML_FILE_PATH = os.getenv("XML_FILE_PATH", "first_10KB.xml")
 
-class TextProcessor:
-    """Advanced text processing for better semantic search"""
-    
-    @staticmethod
-    def clean_mediawiki_text(text: str) -> str:
-        """Clean MediaWiki markup for better indexing"""
-        if not text:
-            return ""
-        
-        # Remove citation templates
-        text = re.sub(r'\{\{Cite[^}]+\}\}', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'\{\{cite[^}]+\}\}', '', text, flags=re.IGNORECASE)
-        
-        # Remove all other templates
-        text = re.sub(r'\{\{[^}]+\}\}', '', text)
-        
-        # Remove references
-        text = re.sub(r'<ref.*?>.*?</ref>', '', text, flags=re.DOTALL)
-        text = re.sub(r'<ref[^>]*?/>', '', text)
-        text = re.sub(r'\[\d+\]', '', text)
-        
-        # Handle internal links - keep display text
-        text = re.sub(r'\[\[([^|]+)\|([^\]]+)\]\]', r'\2', text)
-        text = re.sub(r'\[\[([^\]]+)\]\]', r'\1', text)
-        
-        # Remove external links
-        text = re.sub(r'\[http[^\]]+\]', '', text)
-        text = re.sub(r'\[(https?://[^\s\]]+)([^\]]*)\]', r'\2', text)
-        
-        # Remove tables
-        text = re.sub(r'\{\|[\s\S]*?\|\}', '', text)
-        
-        # Remove file/image references
-        text = re.sub(r'\[\[File:[^\]]+\]\]', '', text)
-        text = re.sub(r'\[\[Image:[^\]]+\]\]', '', text)
-        
-        # Clean markup
-        text = re.sub(r"'''(.*?)'''", r'\1', text)  # Bold
-        text = re.sub(r"''(.*?)''", r'\1', text)    # Italic
-        text = re.sub(r'===+([^=]+)===+', r'\1', text)  # Headers
-        text = re.sub(r'==([^=]+)==', r'\1', text)      # Headers
-        
-        # Remove HTML tags
-        text = re.sub(r'<[^>]+>', '', text)
-        
-        # Clean up whitespace
-        text = re.sub(r'\s+', ' ', text)
-        text = text.strip()
-        
-        return text
-    
-    @staticmethod
-    def extract_keywords(text: str, title: str) -> List[str]:
-        """Extract important keywords for semantic search"""
-        keywords = set()
-        
-        # Add title words
-        title_words = re.findall(r'\b[A-Za-z]{3,}\b', title.lower())
-        keywords.update(title_words)
-        
-        # Extract capitalized words (likely proper nouns)
-        proper_nouns = re.findall(r'\b[A-Z][a-z]{2,}\b', text)
-        keywords.update([word.lower() for word in proper_nouns])
-        
-        # Extract words that appear frequently
-        words = re.findall(r'\b[a-zA-Z]{4,}\b', text.lower())
-        word_freq = {}
-        for word in words:
-            word_freq[word] = word_freq.get(word, 0) + 1
-        
-        # Add words that appear more than once
-        frequent_words = [word for word, freq in word_freq.items() if freq > 1]
-        keywords.update(frequent_words[:20])  # Limit to top 20
-        
-        return list(keywords)
-    
-    @staticmethod
-    def count_sentences(text: str) -> int:
-        """Count sentences in text for quality filtering"""
-        if not text:
-            return 0
-        sentences = re.split(r'[.!?]+', text.strip())
-        sentences = [s.strip() for s in sentences if s.strip() and len(s.strip()) > 10]
-        return len(sentences)
-    
-    @staticmethod
-    def extract_summary(text: str, max_length: int = 500) -> str:
-        """Extract a meaningful summary from the beginning of the text"""
-        if not text:
-            return ""
-        
-        # Split into sentences
-        sentences = re.split(r'[.!?]+', text)
-        summary_sentences = []
-        current_length = 0
-        
-        for sentence in sentences:
-            sentence = sentence.strip()
-            if not sentence:
-                continue
-                
-            # Skip sentences that are too short or look like markup
-            if len(sentence) < 20:
-                continue
-            if re.match(r'^[A-Z_]+\s*[:=]', sentence):  # Code-like
-                continue
-            if re.match(r'^\d+\s*[.:]\s*', sentence):   # Numbered lists
-                continue
-            
-            if current_length + len(sentence) > max_length:
-                break
-                
-            summary_sentences.append(sentence)
-            current_length += len(sentence)
-        
-        return '. '.join(summary_sentences) + '.' if summary_sentences else text[:max_length]
+# SPEED: Load embedding model with optimizations
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
+logger.info(f"Using device: {device}")
 
-def extract_fields(elem) -> Dict[str, Any]:
-    """Extract and process fields from XML element"""
-    processor = TextProcessor()
+def extract_fields(elem):
+    """Extract ONLY essential fields - SPEED OPTIMIZED"""
     
-    # Helper functions
+    # Helper function
     def get_text(e, path):
         found = e.find(path)
         return found.text if found is not None else ""
     
-    def get_text_rev(e, path):
-        found = e.find(path)
-        return found.text if found is not None else ""
-    
-    # Extract basic fields
+    # Basic fields
     title = get_text(elem, './{*}title')
-    ns = get_text(elem, './{*}ns')
-    page_id = get_text(elem, './{*}id')
-    redirect_elem = elem.find('./{*}redirect')
-    redirect = redirect_elem.attrib.get("title") if redirect_elem is not None else ""
     
-    # Extract revision data
+    # Get text content
     revision = elem.find('./{*}revision')
-    rev_id = parentid = timestamp = contributor_username = contributor_id = ""
-    comment = origin = model = format_ = raw_text = ""
+    text = ""
+    timestamp = ""
+    contributor_username = ""
     
     if revision is not None:
-        rev_id = get_text_rev(revision, './{*}id')
-        parentid = get_text_rev(revision, './{*}parentid')
-        timestamp = get_text_rev(revision, './{*}timestamp')
+        text_elem = revision.find('./{*}text')
+        if text_elem is not None:
+            text = text_elem.text if text_elem.text is not None else ""
+        
+        timestamp = get_text(revision, './{*}timestamp')
         
         contributor = revision.find('./{*}contributor')
         if contributor is not None:
-            contributor_username = get_text_rev(contributor, './{*}username')
-            contributor_id = get_text_rev(contributor, './{*}id')
-        
-        comment = get_text_rev(revision, './{*}comment')
-        origin = get_text_rev(revision, './{*}origin')
-        model = get_text_rev(revision, './{*}model')
-        format_ = get_text_rev(revision, './{*}format')
-        
-        text_elem = revision.find('./{*}text')
-        if text_elem is not None:
-            raw_text = text_elem.text if text_elem.text is not None else ""
+            contributor_username = get_text(contributor, './{*}username')
     
-    # Process text for better search
-    cleaned_text = processor.clean_mediawiki_text(raw_text)
-    sentence_count = processor.count_sentences(cleaned_text)
-    keywords = processor.extract_keywords(cleaned_text, title)
-    summary = processor.extract_summary(cleaned_text)
-    
-    # Calculate content quality score
-    quality_score = min(10, max(1, sentence_count / 2))  # 1-10 scale
-    
-    # Determine content type
-    content_type = "article"
-    if ns == "1":
-        content_type = "talk"
-    elif ns == "6":
-        content_type = "file"
-    elif ns == "14":
-        content_type = "category"
-    elif redirect:
-        content_type = "redirect"
+    # SPEED: Super simple validation
+    if not title or not text or len(text) < 50:  # Reduced threshold
+        return None
     
     return {
-        # Basic metadata
         "title": title,
-        "ns": ns,
-        "id": page_id,
-        "redirect": redirect,
-        "content_type": content_type,
-        
-        # Revision metadata
-        "revision_id": rev_id,
-        "parentid": parentid,
+        "text": text[:2000] + "..." if len(text) > 2000 else text,  # SPEED: Truncate stored text
+        "title_for_embedding": title,
+        "text_for_embedding": text[:1500],  # SPEED: Shorter embeddings
         "timestamp": timestamp,
-        "contributor_username": contributor_username,
-        "contributor_id": contributor_id,
-        "comment": comment,
-        "origin": origin,
-        "model": model,
-        "format": format_,
-        
-        # Processed content for search
-        "text": cleaned_text,
-        "raw_text": raw_text,
-        "summary": summary,
-        "keywords": keywords,
-        "sentence_count": sentence_count,
-        "quality_score": quality_score,
-        "text_length": len(cleaned_text),
-        
-        # Search optimization fields
-        "title_keywords": title.lower().split(),
-        "has_content": len(cleaned_text) > 100,
-        "is_substantial": sentence_count >= 6,
-        
-        # Indexing metadata
-        "indexed_at": datetime.utcnow().isoformat(),
-        "url": f"https://en.wikipedia.org/wiki/{title.replace(' ', '_')}" if title else ""
+        "contributor_username": contributor_username[:30] if contributor_username else ""  # SPEED: Truncate
     }
 
-def create_index_mapping(es: Elasticsearch, index_name: str) -> bool:
-    """Create optimized index mapping for semantic search"""
+def create_fast_index(es, index_name):
+    """Create SPEED-OPTIMIZED semantic search index"""
     mapping = {
         "settings": {
-            "number_of_shards": 1,
-            "number_of_replicas": 0,
-            "analysis": {
-                "analyzer": {
-                    "semantic_analyzer": {
-                        "type": "custom",
-                        "tokenizer": "standard",
-                        "filter": [
-                            "lowercase",
-                            "stop",
-                            "snowball",
-                            "asciifolding"
-                        ]
-                    },
-                    "keyword_analyzer": {
-                        "type": "custom",
-                        "tokenizer": "keyword",
-                        "filter": ["lowercase", "trim"]
-                    }
-                }
-            }
+            "number_of_replicas": 0,  # SPEED: No replicas during upload
+            "refresh_interval": "-1"  # SPEED: Disable refresh during upload
         },
         "mappings": {
             "properties": {
-                # Core content fields
                 "title": {
                     "type": "text",
-                    "analyzer": "semantic_analyzer",
-                    "fields": {
-                        "exact": {"type": "keyword"},
-                        "suggest": {"type": "completion"}
-                    },
-                    "boost": 3.0
+                    "analyzer": "standard"  # SPEED: Faster than english
                 },
                 "text": {
-                    "type": "text", 
-                    "analyzer": "semantic_analyzer",
-                    "term_vector": "with_positions_offsets"
-                },
-                "summary": {
                     "type": "text",
-                    "analyzer": "semantic_analyzer",
-                    "boost": 2.0
+                    "analyzer": "standard"  # SPEED: Faster than english
                 },
-                "keywords": {
-                    "type": "keyword",
-                    "boost": 1.5
+                "title_embedding": {
+                    "type": "dense_vector",
+                    "dims": 384,
+                    "index": True,
+                    "similarity": "dot_product"  # SPEED: Faster than cosine
                 },
-                "title_keywords": {
-                    "type": "keyword"
+                "text_embedding": {
+                    "type": "dense_vector",
+                    "dims": 384,
+                    "index": True,
+                    "similarity": "dot_product"  # SPEED: Faster than cosine
                 },
-                
-                # Metadata fields
-                "ns": {"type": "keyword"},
-                "id": {"type": "keyword"},
-                "content_type": {"type": "keyword"},
-                "quality_score": {"type": "float"},
-                "sentence_count": {"type": "integer"},
-                "text_length": {"type": "integer"},
-                "has_content": {"type": "boolean"},
-                "is_substantial": {"type": "boolean"},
-                
-                # Revision fields
-                "revision_id": {"type": "keyword"},
                 "timestamp": {"type": "date"},
-                "contributor_username": {"type": "keyword"},
-                "contributor_id": {"type": "keyword"},
-                
-                # Search optimization
-                "url": {"type": "keyword"},
-                "indexed_at": {"type": "date"},
-                
-                # Raw content (not analyzed)
-                "raw_text": {"type": "text", "index": False}
+                "contributor_username": {"type": "keyword"}
             }
         }
     }
     
-    try:
-        if es.indices.exists(index=index_name):
-            logger.info(f"Index '{index_name}' already exists")
-            return True
-        
-        es.indices.create(index=index_name, body=mapping)
-        logger.info(f"Created index '{index_name}' with optimized mapping")
+    if es.indices.exists(index=index_name):
+        logger.info(f"Index '{index_name}' already exists")
         return True
-    except Exception as e:
-        logger.error(f"Error creating index: {e}")
-        return False
+    
+    es.indices.create(index=index_name, **mapping)
+    logger.info(f"Created FAST semantic index: {index_name}")
+    return True
 
-def iter_articles(xml_path: str):
-    """Iterate through XML articles with better error handling"""
+def process_batch_embeddings(articles):
+    """Generate embeddings - MAXIMUM SPEED"""
+    if not articles:
+        return []
+    
+    # Extract title and text content separately
+    titles = [article["title_for_embedding"] for article in articles]
+    texts = [article["text_for_embedding"] for article in articles]
+    
+    # SPEED: Generate embeddings with optimizations
+    title_embeddings = model.encode(
+        titles, 
+        show_progress_bar=False, 
+        batch_size=64,  # SPEED: Larger batch
+        normalize_embeddings=True,  # SPEED: For dot_product similarity
+        convert_to_tensor=False
+    )
+    text_embeddings = model.encode(
+        texts, 
+        show_progress_bar=False, 
+        batch_size=64,  # SPEED: Larger batch
+        normalize_embeddings=True,  # SPEED: For dot_product similarity
+        convert_to_tensor=False
+    )
+    
+    # Add embeddings to articles
+    for i, article in enumerate(articles):
+        article["title_embedding"] = title_embeddings[i].tolist()
+        article["text_embedding"] = text_embeddings[i].tolist()
+        # Remove the temporary fields
+        del article["title_for_embedding"]
+        del article["text_for_embedding"]
+    
+    return articles
+
+def process_articles(xml_path):
+    """Process articles in LARGE batches"""
     try:
         context = ET.iterparse(xml_path, events=("end",))
-        processed_count = 0
+        batch = []
+        batch_size = 200  # SPEED: Much larger batches
         
         for event, elem in context:
             if elem.tag.endswith('page'):
                 try:
                     article = extract_fields(elem)
-                    
-                    # Filter out low-quality content
-                    if (article['has_content'] and 
-                        article['content_type'] == 'article' and 
-                        not article['redirect']):
-                        yield article
-                        processed_count += 1
+                    if article:
+                        batch.append(article)
                         
-                        if processed_count % 100 == 0:
-                            logger.info(f"Processed {processed_count} articles...")
+                        # Process batch when full
+                        if len(batch) >= batch_size:
+                            yield process_batch_embeddings(batch)
+                            batch = []
                     
                     elem.clear()  # Free memory
                     
                 except Exception as e:
-                    logger.warning(f"Error processing article: {e}")
+                    # SPEED: Skip logging individual errors
                     elem.clear()
                     continue
-                    
+        
+        # Process remaining articles
+        if batch:
+            yield process_batch_embeddings(batch)
+            
     except ET.ParseError as e:
-        logger.warning(f"XML ParseError: {e}. Processing available pages...")
+        logger.warning(f"XML ParseError: {e}")
 
-def parse_and_upload_to_es():
-    """Parse XML and upload articles to Elasticsearch with advanced indexing"""
+def parse_and_upload_fast():
+    """MAXIMUM SPEED parse and upload"""
     
     # Connect to Elasticsearch
     es = Elasticsearch(ES_HOST, api_key=ES_APIKEY)
     
-    try:
-        if not es.ping():
-            logger.error(f"Could not connect to Elasticsearch at {ES_HOST}")
-            return
-        logger.info("Successfully connected to Elasticsearch")
-        
-        # Create optimized index
-        if not create_index_mapping(es, ES_INDEX):
-            logger.error("Failed to create index mapping")
-            return
-        
-    except Exception as e:
-        logger.error(f"Error connecting to Elasticsearch: {e}")
+    if not es.ping():
+        logger.error(f"Could not connect to Elasticsearch at {ES_HOST}")
         return
     
-    # Process and upload in batches
-    actions = []
-    page_count = 0
-    successful_uploads = 0
-    batch_size = 50  # Smaller batches for complex documents
+    logger.info("Connected to Elasticsearch")
     
-    logger.info(f"Starting to process articles from {XML_FILE_PATH}")
+    # Create fast index
+    if not create_fast_index(es, ES_INDEX):
+        return
     
-    for article in iter_articles(XML_FILE_PATH):
-        # Ensure all fields have valid values
-        for key, value in article.items():
-            if value is None:
-                article[key] = "" if isinstance(value, str) else 0
+    # Process and upload
+    total_uploaded = 0
+    total_processed = 0
+    start_time = datetime.now()
+    
+    logger.info(f"Starting FAST processing from {XML_FILE_PATH}")
+    
+    for batch_articles in process_articles(XML_FILE_PATH):
+        if not batch_articles:
+            continue
+            
+        # Prepare for bulk upload
+        actions = []
+        for article in batch_articles:
+            actions.append({
+                "_index": ES_INDEX,
+                "_source": article
+            })
         
-        actions.append({
-            "_index": ES_INDEX,
-            "_source": article
-        })
-        page_count += 1
-        
-        # Upload in batches
-        if len(actions) >= batch_size:
-            try:
-                success, failed = helpers.bulk(
-                    es, 
-                    actions, 
-                    stats_only=True, 
-                    raise_on_error=False,
-                    timeout='60s',
-                    max_retries=3
-                )
-                successful_uploads += success
-                logger.info(f"Batch uploaded: {success} successful, {failed} failed. Total: {successful_uploads}")
-                actions = []
-                
-            except Exception as e:
-                logger.error(f"Error uploading batch: {e}")
-                if actions:
-                    logger.error(f"First document in failed batch: {actions[0]['_source']['title']}")
-                actions = []
-    
-    # Upload remaining documents
-    if actions:
+        # SPEED: Massive bulk upload
         try:
             success, failed = helpers.bulk(
                 es, 
                 actions, 
                 stats_only=True, 
                 raise_on_error=False,
-                timeout='60s'
+                chunk_size=200,  # SPEED: Much larger chunks
+                request_timeout=300,  # SPEED: Longer timeout
+                max_chunk_bytes=100 * 1024 * 1024  # SPEED: 100MB chunks
             )
-            successful_uploads += success
-            logger.info(f"Final batch: {success} successful, {failed} failed")
+            total_uploaded += success
+            total_processed += len(actions)
+            
+            # SPEED: Log less frequently
+            if total_uploaded % 1000 == 0:
+                elapsed = (datetime.now() - start_time).total_seconds()
+                rate = total_uploaded / elapsed if elapsed > 0 else 0
+                logger.info(f"Total uploaded: {total_uploaded}, Rate: {rate:.0f} docs/sec")
+            
         except Exception as e:
-            logger.error(f"Error uploading final batch: {e}")
+            logger.error(f"Error uploading batch: {e}")
     
-    logger.info(f"Upload complete. Total processed: {page_count}, Successfully uploaded: {successful_uploads}")
+    # SPEED: Re-enable refresh and optimize
+    logger.info("Optimizing index for search speed...")
+    es.indices.put_settings(
+        index=ES_INDEX,
+        body={
+            "refresh_interval": "1s",
+            "number_of_replicas": 0
+        }
+    )
     
-    # Refresh index
-    try:
-        es.indices.refresh(index=ES_INDEX)
-        logger.info("Index refreshed. All documents are now searchable.")
-        
-        # Print index stats
-        stats = es.indices.stats(index=ES_INDEX)
-        doc_count = stats['indices'][ES_INDEX]['total']['docs']['count']
-        logger.info(f"Index now contains {doc_count} documents")
-        
-    except Exception as e:
-        logger.error(f"Error refreshing index: {e}")
+    # SPEED: Force merge for faster search
+    es.indices.forcemerge(index=ES_INDEX, max_num_segments=1)
+    es.indices.refresh(index=ES_INDEX)
+    
+    elapsed = (datetime.now() - start_time).total_seconds()
+    rate = total_uploaded / elapsed if elapsed > 0 else 0
+    
+    logger.info(f"✅ FAST Upload complete!")
+    logger.info(f"✅ Processed: {total_processed}")
+    logger.info(f"✅ Uploaded: {total_uploaded}")
+    logger.info(f"✅ Time: {elapsed:.1f} seconds")
+    logger.info(f"✅ Rate: {rate:.0f} documents/second")
+    
+    # Final count
+    final_count = es.count(index=ES_INDEX)["count"]
+    logger.info(f"✅ Index contains: {final_count} documents")
 
 if __name__ == "__main__":
-    parse_and_upload_to_es()
+    parse_and_upload_fast()

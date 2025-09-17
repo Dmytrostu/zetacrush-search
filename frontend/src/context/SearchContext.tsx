@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../api';
 
@@ -53,19 +53,22 @@ export const SearchProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [pageSize, setPageSize] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [apiHealthy, setApiHealthy] = useState(true); // Default to true until proven otherwise
+  const [apiHealthy, setApiHealthy] = useState(true);
 
   const navigate = useNavigate();
-  const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  
+  // Use refs to track if we've already processed URL params
+  const hasProcessedUrlParams = useRef(false);
+  const lastSearchQuery = useRef('');
 
-  // Check API health on component mount
+  // Check API health on component mount ONCE
   useEffect(() => {
     checkApiHealth();
-    // Set up interval to check API health periodically (every 5 minutes)
-    const interval = setInterval(checkApiHealth, 5 * 60 * 1000);
+    // Reduce frequency - check every 30 minutes instead of 5
+    const interval = setInterval(checkApiHealth, 30 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, []); // Empty dependency array
 
   // Function to check API health
   const checkApiHealth = async () => {
@@ -78,43 +81,59 @@ export const SearchProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
-  // Parse URL parameters on mount or location change
+  // Parse URL parameters ONCE on mount or when URL changes
   useEffect(() => {
     const queryParam = searchParams.get('query');
     const pageParam = searchParams.get('page');
     const pageSizeParam = searchParams.get('pageSize');
 
-    // Only set the query if it exists in the URL and is different from current query
-    if (queryParam && queryParam !== query) {
-      setQuery(queryParam);
+    // Prevent duplicate processing
+    if (hasProcessedUrlParams.current && queryParam === lastSearchQuery.current) {
+      return;
     }
 
-    // Set page if it exists in the URL
+    // Update state from URL params
+    if (queryParam) {
+      setQuery(queryParam);
+      lastSearchQuery.current = queryParam;
+    }
+
     if (pageParam) {
       setCurrentPage(parseInt(pageParam, 10) || 1);
     }
 
-    // Set page size if it exists in the URL
     if (pageSizeParam) {
       setPageSize(parseInt(pageSizeParam, 10) || 10);
     }
 
-    // If we have a query from the URL, perform the search
-    if (queryParam) {
-      performSearch(
+    // Perform search if we have a query and haven't processed it yet
+    if (queryParam && !hasProcessedUrlParams.current) {
+      hasProcessedUrlParams.current = true;
+      performSearchInternal(
         queryParam,
         pageParam ? parseInt(pageParam, 10) : 1,
-        pageSizeParam ? parseInt(pageSizeParam, 10) : 10
+        pageSizeParam ? parseInt(pageSizeParam, 10) : 10,
+        false // Don't navigate since we're already on the right URL
       );
     }
-  }, [searchParams, query]);
+  }, [searchParams.toString()]); // Use toString() to avoid object reference issues
 
-
-  const performSearch = async (searchQuery: string, page = 1, size = 10) => {
+  // Internal search function that doesn't navigate
+  const performSearchInternal = async (
+    searchQuery: string, 
+    page = 1, 
+    size = 10, 
+    shouldNavigate = true
+  ) => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
       setTotalResults(0);
       setSuggestions([]);
+      return;
+    }
+
+    // Prevent duplicate searches
+    if (isLoading) {
       return;
     }
 
@@ -141,17 +160,18 @@ export const SearchProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setPageSize(data.page_size || 10);
       setSuggestions(data.suggest || []);
 
-      // Always navigate to the results page with the correct query parameters
-      const params = new URLSearchParams();
-      params.set('query', searchQuery);
-      params.set('page', page.toString());
-      params.set('pageSize', size.toString());
+      // Only navigate if requested (not when loading from URL)
+      if (shouldNavigate) {
+        const params = new URLSearchParams();
+        params.set('query', searchQuery);
+        params.set('page', page.toString());
+        params.set('pageSize', size.toString());
 
-      // Use navigate instead of setSearchParams to ensure it works from any page
-      navigate({
-        pathname: '/results',
-        search: params.toString()
-      });
+        navigate({
+          pathname: '/results',
+          search: params.toString()
+        });
+      }
 
       // Search was successful, so API is healthy
       setApiHealthy(true);
@@ -161,37 +181,46 @@ export const SearchProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setTotalResults(0);
       setSuggestions([]);
 
-      // Search failed, so API might be unhealthy
-      checkApiHealth();
+      // Don't check API health on every failed search
+      // checkApiHealth();
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Public search function that always navigates
+  const performSearch = useCallback(async (searchQuery: string, page = 1, size = 10) => {
+    hasProcessedUrlParams.current = false; // Reset flag for new searches
+    await performSearchInternal(searchQuery, page, size, true);
+  }, []);
 
-  // Function to fetch only suggestions without performing search
-  const fetchSuggestions = async (queryText: string): Promise<string[]> => {
+  // Debounced suggestion fetching
+  const fetchSuggestions = useCallback(async (queryText: string): Promise<string[]> => {
     if (!queryText.trim()) {
       setSuggestions([]);
       return [];
     }
 
     try {
-      const response = await apiClient.get('/api/suggest', {
-        params: {
-          query: queryText,
-        }
-      });
+      // Optional: Remove this if you don't need suggestions
+      // const response = await apiClient.get('/api/suggest', {
+      //   params: {
+      //     query: queryText,
+      //   }
+      // });
 
-      const suggestionsData = response.data.suggestions || [];
-      setSuggestions(suggestionsData);
-      return suggestionsData;
+      // const suggestionsData = response.data.suggestions || [];
+      // setSuggestions(suggestionsData);
+      // return suggestionsData;
+      
+      // For now, return empty to reduce API calls
+      return [];
     } catch (error) {
       console.error('Error fetching suggestions:', error);
       setSuggestions([]);
       return [];
     }
-  };
+  }, []);
 
   return (
     <SearchContext.Provider value={{
